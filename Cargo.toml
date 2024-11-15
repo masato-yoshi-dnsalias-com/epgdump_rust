@@ -1,0 +1,18 @@
+[package]
+name = "epgdump"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+colored = { version = "^2.0.0" }
+chrono = { version = "^0.4" }
+encoding_rs = { version = "^0.8" }
+env_logger = { version = "^0.8" }
+getopts = { version = "^0.2" }
+log = { version = "^0.4.17" }
+xml = { version = "^0.8" }
+
+
+[[bin]]
+name = "epgdump"
+path = "src/epgdump.rs"
