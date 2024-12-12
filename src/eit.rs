@@ -2,6 +2,9 @@ extern crate chrono;
 
 use chrono::{DateTime, Local, TimeZone};
 //use chrono::prelude::{Datelike, Timelike};
+#[allow(unused_imports)]
+use log::{debug, info};
+
 use crate::arib::{arib_to_string};
 use crate::{CommanLineOpt};
 use crate::sdt::{service_id_cehck};
@@ -50,10 +53,11 @@ struct EitBody {
 // イベント詳細構造体
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
-struct SevtDesc<'a> {
+struct SevtDesc {
     descriptor_tag: i32,
     descriptor_length: i32,
-    iso_639_language_code: &'a str,
+    //iso_639_language_code: &'a str,
+    iso_639_language_code: String,
     event_name_length: i32,
     //event_name: [u8; MAXSECLEN],
     event_name: String,
@@ -91,14 +95,15 @@ struct SeriesDesc {
 // コンポーネント詳細構造体
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
-struct ComponentDesc<'a> {
+struct ComponentDesc {
     descriptor_tag: i32,
     descriptor_length: i32,
     reserved_future_use: i32,
     stream_content: i32,
     component_type: i32,
     component_tag: i32,
-    iso_639_language_code: &'a str,
+    //iso_639_language_code: &'a str,
+    iso_639_language_code: String,
     //text_char: [u8; MAXSECLEN],
     text_char: String,
 }
@@ -106,7 +111,7 @@ struct ComponentDesc<'a> {
 // オーディオコンポーネント詳細構造体
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
-struct AudioComponentDesc<'a> {
+struct AudioComponentDesc {
     descriptor_tag: i32,
     descriptor_length: i32,
     reserved_future_use_1: i32,
@@ -120,21 +125,24 @@ struct AudioComponentDesc<'a> {
     quality_indicator: i32,
     sampling_rate: i32,
     reserved_future_use_2: i32,
-    iso_639_language_code_1: &'a str,
-    iso_639_language_code_2: &'a str,
+    //iso_639_language_code_1: &'a str,
+    //iso_639_language_code_2: &'a str,
+    iso_639_language_code_1: String,
+    iso_639_language_code_2: String,
     //text_char: [u8; MAXSECLEN],
     text_char: String,
 }
 
 // 拡張イベント記述子ヘッダー構造体
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
-struct EevtdHead<'a> {
+struct EevtdHead {
     descriptor_tag: i32,
     descriptor_length: i32,
     descriptor_number: i32,
     last_descriptor_number: i32,
-    iso_639_language_code: &'a str,
+    //iso_639_language_code: &'a str,
+    iso_639_language_code: String,
     length_of_items: i32,
 }
 
@@ -176,27 +184,33 @@ pub const NEXT_EVENT_UNCERTAINTY: i32 = 0x04;
 //
 pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtControlTop>) -> () {
 
+    // table_idポインタ変数
+    let mut table_id_index = 0;
+
+    // table_idが0xff以外でループ
+    while buf[table_id_index] != 0xff {
+
     // EITヘッダーの取り込み
     let eith = EitHead {
-        table_id: buf[0] as u32,
-        section_syntax_indicator: buf[1] as i32 & 0x80 >> 7,
-        reserved_future_use: (buf[1] as i32 & 0x40) >> 6,
-        reserved1: (buf[1] as i32 & 0x30) >> 4,
-        section_length: ((buf[1] as i32 & 0x0f) << 8) + buf[2] as i32,
-        service_id: ((buf[3] as i32 & 0xff) << 8) + buf[4] as i32,
-        reserved2:((buf[5] as i32 & 0xc0) >> 6),
-        version_number: ((buf[5] as i32 & 0x3e) >> 1),
-        current_next_indicator: buf[5] as i32 & 0x01,
-        section_number: buf[6] as i32,
-        last_section_number: buf[7] as i32,
-        transport_stream_id: ((buf[8] as u32 & 0xff) << 8) + buf[9] as u32,
-        original_network_id: ((buf[10] as i32 &0xff) << 8) + buf[11] as i32,
-        segment_last_section_number: buf[12] as i32,
-        last_table_id:  buf[13] as u32,
+        table_id: buf[table_id_index] as u32,
+        section_syntax_indicator: buf[table_id_index + 1] as i32 & 0x80 >> 7,
+        reserved_future_use: (buf[table_id_index + 1] as i32 & 0x40) >> 6,
+        reserved1: (buf[table_id_index + 1] as i32 & 0x30) >> 4,
+        section_length: ((buf[table_id_index + 1] as i32 & 0x0f) << 8) + buf[table_id_index + 2] as i32,
+        service_id: ((buf[table_id_index + 3] as i32 & 0xff) << 8) + buf[table_id_index + 4] as i32,
+        reserved2:((buf[table_id_index + 5] as i32 & 0xc0) >> 6),
+        version_number: ((buf[table_id_index + 5] as i32 & 0x3e) >> 1),
+        current_next_indicator: buf[table_id_index + 5] as i32 & 0x01,
+        section_number: buf[table_id_index + 6] as i32,
+        last_section_number: buf[table_id_index + 7] as i32,
+        transport_stream_id: ((buf[table_id_index + 8] as u32 & 0xff) << 8) + buf[table_id_index + 9] as u32,
+        original_network_id: ((buf[table_id_index + 10] as i32 &0xff) << 8) + buf[table_id_index + 11] as i32,
+        segment_last_section_number: buf[table_id_index + 12] as i32,
+        last_table_id:  buf[table_id_index + 13] as u32,
     };
 
     // 変数初期化
-    let mut len = 14;
+    let mut len = table_id_index + 14;
     let mut index: usize = 0;
     let eit_pf_flg = match eith.table_id {
         0x4e | 0x4f => true,
@@ -231,11 +245,11 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
     for cnt in 0..svttop.len() {
 
         // import_statが0未満の場合はリターン
-        if svttop[cnt].svt_control_sub[0].import_stat < 0 {
+        //if svttop[cnt].svt_control_sub[0].import_stat < 0 {
 
-            return;
+        //    return;
 
-        };
+        //};
 
         // 取得対象サービスの処理
         if svttop[cnt].service_id == eith.service_id {
@@ -258,7 +272,8 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
             index += len;
 
             // loopレングスの設定
-            loop_len = eith.section_length - (len as i32 - 3 + 4); // 3は共通ヘッダ長 4はCRC
+            loop_len = eith.section_length - (14 - 3 + 4) as i32; // 3は共通ヘッダ長 4はCRC
+            //loop_len = eith.section_length - (len as i32 - 3 + 4); // 3は共通ヘッダ長 4はCRC
 
             // loopレングスが0でEIT PFフラグがオフの場合はリターン
             if loop_len == 0 && eit_pf_flg == false {
@@ -361,14 +376,15 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                 loop_blen = eitb.descriptors_loop_length;
                 loop_len -= loop_blen;
 
-                // loo_blenが0以上の処理
+                // loop_blenが0以上の処理
                 while loop_blen > 0 {
 
                     // イベント詳細情報の取得
                     let mut sevtd = SevtDesc {
                         descriptor_tag: buf[index] as i32,
                         descriptor_length: buf[index + 1] as i32,
-                        iso_639_language_code: "   ",
+                        //iso_639_language_code: "   ",
+                        iso_639_language_code: String::new(),
                         event_name_length: 0,
                         //event_name: [0; MAXSECLEN],
                         event_name: String::new(),
@@ -380,8 +396,16 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                     // ディスクリプタータグが0x4dの場合はlenの設定と文字情報を取得
                     if buf[index] & 0xff == 0x4d {
 
+                        // レングス取得
                         sevtd.descriptor_length = buf[index + 1] as i32;
-                        sevtd.iso_639_language_code = std::str::from_utf8(&buf[index + 2..index + 2 + 3]).unwrap();
+
+                        // iso639文字コード取得(utf-8ではないコードが紛れ込んでいるのでエラーの時は[jpn]に変換)
+                        sevtd.iso_639_language_code = match std::str::from_utf8(&buf[index + 2..index + 2 + 3]) {
+                            Ok(lang_code) => lang_code.to_string(),
+                            Err(_) => "jpn".to_string(),
+                        };
+
+                        // イベント名レングス、テキストレングスの退避
                         let work_event_name_length = buf[index + 5] as i32;
                         let work_text_length = buf[index + 6 + work_event_name_length as usize] as i32;
 
@@ -451,8 +475,9 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
 
                                     // EIT PFフラグがfalseの場合にimport_cntのカウントアップ
                                     if eit_pf_flg != true {
-                                        eittop[cnt].import_cnt = eittop[cnt2].import_cnt + 1;
-                                        eittop[cnt].renew_cnt += 1;
+                                        eittop[cnt2].import_cnt += 1;
+                                        //eittop[cnt2].import_cnt = eittop[cnt2].import_cnt + 1;
+                                        eittop[cnt2].renew_cnt += 1;
                                     };
                                 };
                             };
@@ -582,17 +607,24 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                             descriptor_length: buf[index + 1] as i32,
                             descriptor_number: 0,
                             last_descriptor_number: 0,
-                            iso_639_language_code: "   ",
+                            iso_639_language_code: String::new(),
                             length_of_items: 0,
                         };
 
                         // ディスクリプタータグが0x4eの場合はlenの設定と文字情報を取得
                         if (buf[index] & 0xff) == 0x4e {
 
+                            // descriptor情報取得
                             eevthead.descriptor_length = buf[index + 1] as i32;
                             eevthead.descriptor_number = (buf[index + 2] as i32) >> 4;
                             eevthead.last_descriptor_number = buf[index + 2] as i32 & 0x0f;
-                            eevthead.iso_639_language_code = std::str::from_utf8(&buf[index + 3..index + 3 + 3]).unwrap();
+                            //eevthead.iso_639_language_code = std::str::from_utf8(&buf[index + 3..index + 3 + 3]).unwrap();
+                            // iso639文字コード取得(utf-8ではないコードが紛れ込んでいるのでエラーの時は[jpn]に変換)
+                            eevthead.iso_639_language_code = match std::str::from_utf8(&buf[index + 3..index + 3 + 3]) {
+                                Ok(lang_code) => String::from(lang_code),
+                                Err(_) => String::from("jpn"),
+                            };
+
                             eevthead.length_of_items = buf[index + 6] as i32;
                             len = 7;
 
@@ -611,7 +643,7 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                             index += len;
                             loop_blen -= len as i32;
                             loop_elen = eevthead.length_of_items;
-                            loop_len -= loop_elen;
+                            //loop_len -= loop_elen;
 
                             // loop_elenが0以下になるまでループ
                             while loop_elen > 0 {
@@ -756,7 +788,6 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
 
                                 // カウンター更新
                                 len = descriptor_length as usize + 2;
-                                loop_blen -= len as i32;
 
                             };
 
@@ -956,7 +987,12 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                                                 stream_content: buf[index + 2] as i32 & 0x0f,
                                                 component_type: buf[index + 3] as i32,
                                                 component_tag: buf[index + 4] as i32,
-                                                iso_639_language_code: std::str::from_utf8(&buf[index + 5..index + 5 + 3]).unwrap(),
+                                                //iso_639_language_code: std::str::from_utf8(&buf[index + 5..index + 5 + 3]).unwrap(),
+                                                // iso639文字コード取得(utf-8ではないコードが紛れ込んでいるのでエラーの時は[jpn]に変換)
+                                                iso_639_language_code: match std::str::from_utf8(&buf[index + 5..index + 5 + 3]) {
+                                                    Ok(lang_code) => String::from(lang_code),
+                                                    Err(_) => String::from("jpn"),
+                                                },
                                                 //text_char: [0; MAXSECLEN],
                                                 text_char: String::new(),
                                             };
@@ -996,8 +1032,13 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                                                 quality_indicator: (buf[index + 7] as i32 & 0x30) >> 4,
                                                 sampling_rate: (buf[index + 7] as i32 & 0x0e) >> 1,
                                                 reserved_future_use_2: buf[index + 7] as i32 & 0x01,
-                                                iso_639_language_code_1: std::str::from_utf8(&buf[index + 8..index + 8 + 3]).unwrap(),
-                                                iso_639_language_code_2: "   ",
+                                                //iso_639_language_code_1: std::str::from_utf8(&buf[index + 8..index + 8 + 3]).unwrap(),
+                                                // iso639文字コード取得(utf-8ではないコードが紛れ込んでいるのでエラーの時は[jpn]に変換)
+                                                iso_639_language_code_1: match std::str::from_utf8(&buf[index + 8..index + 8 + 3]) {
+                                                    Ok(lang_code) => String::from(lang_code),
+                                                    Err(_) => String::from("jpn"),
+                                                },
+                                                iso_639_language_code_2: String::new(),
                                                 //text_char: [0; MAXSECLEN],
                                                 text_char: String::new(),
                                             };
@@ -1007,8 +1048,15 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                                             if audio_component_desc.es_multi_lingual_flag == 1 {
 
                                                 // ランゲージコードの取得
-                                                audio_component_desc.iso_639_language_code_2 = 
-                                                    std::str::from_utf8(&buf[index + 11..index + 11 + 3]).unwrap();
+                                                //audio_component_desc.iso_639_language_code_2 = 
+                                                //    std::str::from_utf8(&buf[index + 11..index + 11 + 3]).unwrap();
+                                                // iso639文字コード取得(utf-8ではないコードが紛れ込んでいるのでエラーの時は[jpn]に変換)
+                                                audio_component_desc.iso_639_language_code_2 = match
+                                                    std::str::from_utf8(&buf[index + 11..index + 11 + 3]) {
+                                                        Ok(lang_code) => String::from(lang_code),
+                                                        Err(_) => String::from("jpn"),
+                                                };
+
 
                                                 // オーディオコンポーネント長が15以上の処理
                                                 if audio_component_desc.descriptor_length > 14 {
@@ -1065,7 +1113,7 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                                     
                                     // カウンター更新
                                     len = descriptor_length as usize + 2;
-                                    loop_blen -= len as i32;
+                                    //loop_blen -= len as i32;
 
                                 };
                             };
@@ -1117,5 +1165,8 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
 
             };
         };
+        };
+        table_id_index += eith.section_length as usize + 3;
+        debug!("table_id_index={}", table_id_index);
     };
 }

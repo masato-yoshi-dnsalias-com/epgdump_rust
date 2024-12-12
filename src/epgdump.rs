@@ -3,10 +3,10 @@ extern crate getopts;
 use chrono::{DateTime, Local, TimeZone};
 use chrono::prelude::{Datelike, Timelike};
 use colored::*;
-use env_logger::{Builder, Env};
+use env_logger::{Builder, Env, Target};
 use std::fs::File;
 use getopts::Options;
-use log::{debug, info};
+use log::{debug};
 use std::env;
 //use std::io::prelude::*;
 use std::io::{BufReader, Write};
@@ -20,7 +20,7 @@ mod ts;
 use crate::eit::{CERTAINTY, START_TIME_UNCERTAINTY, DURATION_UNCERTAINTY};
 use crate::eit::{dump_eit};
 use crate::sdt::{dump_sdt};
-use crate::ts::{MAXSECLEN, read_ts, SecCache, SvtControl, SvtControlTop,
+use crate::ts::{MAXSECBUF, read_ts, SecCache, SvtControl, SvtControlTop,
                 EitControl, TsPacket, TSPAYLOADMAX};
 
 // 定数設定
@@ -77,21 +77,40 @@ pub(crate) fn command_line_check(program: &str) -> CommanLineOpt {
 
 
     // 実行時に与えられた引数をargs: Vec<String>に格納する
-    let args: Vec<String> = env::args().collect();
+    let mut args: Vec<String> = env::args().collect();
 
+    // epgdump互換引数の変換
+    for cnt in 0..args.len() {
+
+        let change_string = match &*args[cnt] {
+            "/BS"  => { String::from("--BS") },
+            "/CS"  => { String::from("--CS") },
+            "-all" => { String::from("--all") },
+            "-cut" => { String::from("--cut") },
+            "-pf"  => { String::from("--pf") },
+            "-sid" => { String::from("--sid") },
+            "-xml" => { String::from("--xml") },
+            _      => { String::from("") },
+        };
+
+        // args: Vec<String>の更新
+        if change_string != "" {
+            args[cnt] = change_string;
+        }
+    }
 
     // オプションを設定
     let mut opts = Options::new();
     //opts.optflag("","LOGO","ロゴ取得モード。独立して指定し、番組表の出力を行ないません。\n必要なTSの長さ 地上波は10分 BS/CSは20分です。");
-    opts.optflag("","BS","BSモード。一つのTSからBS全局のデータを読み込みます。");
-    opts.optflag("","CS","CSモード。一つのTSからCS複数局のデータを読み込みます。");
+    opts.optflag("","BS","/BS,BSモード。一つのTSからBS全局のデータを読み込みます。");
+    opts.optflag("","CS","/CS,CSモード。一つのTSからCS複数局のデータを読み込みます。");
     //opts.optopt("","","チャンネル識別子。地上波の物理チャンネルを与えます。","id");
     //opts.optopt("","TIME","時刻合わせモード。TSからTOT(TimeOffsetTable)を読み込みます。\nrecpt1 <任意> 10(秒以上) - | epgdump --TIME - <任意> の形で使用してください。\nTOTは5秒に1回しか来ないため、recpt1に与える時間をある程度長くしてください。","");
-    opts.optflag("","pf","EID[pf]単独出力モード。必要なTSの長さは4秒です。");
-    opts.optopt("","sid","BS/CS単チャンネル出力モード。nにはチャンネルsidを指定","n");
-    opts.optopt("","cut","BS/CS不要チャンネル除外モード。nには不要チャンネルsidをcsv形式で指定","n1,n2,...");
-    opts.optflag("","all","全サービスを出力対象とする。");
-    opts.optflag("","xml","XMLフォーマットで出力する。");
+    opts.optflag("","pf","-pf,EID[pf]単独出力モード。必要なTSの長さは4秒です。");
+    opts.optopt("","sid","-sid,BS/CS単チャンネル出力モード。nにはチャンネルsidを指定","n");
+    opts.optopt("c","cut","-cut,BS/CS不要チャンネル除外モード。nには不要チャンネルsidをcsv形式で指定","n1,n2,...");
+    opts.optflag("","all","-all,全サービスを出力対象とする。");
+    opts.optflag("","xml","-xml,XMLフォーマットで出力する。");
     opts.optflag("h","help","このヘルプを表示");
     opts.optflag("v","version","バージョンを表示する。");
 
@@ -181,15 +200,26 @@ pub(crate) fn command_line_check(program: &str) -> CommanLineOpt {
         },
         3 if (is_bs == false && is_cs == false) => {
 
-            id = matches.free[0].clone();
-            infile = matches.free[1].clone();
-            outfile = matches.free[2].clone();
+            if matches.free[0].to_uppercase().starts_with("GR") {
+
+                id = matches.free[0].clone();
+                infile = matches.free[1].clone();
+                outfile = matches.free[2].clone();
+
+            }
+            else {
+
+                show_usage(&program, &mut &opts);
+                process::exit(0);
+
+            };
 
         },
         _ => {
             show_usage(&program, &mut &opts);
             process::exit(0);
         },
+
     };
 
     // リターン情報
@@ -237,6 +267,7 @@ fn main() {
             )
         }
     )
+    .target(Target::Stdout)  // 出力先をStdoutに変更
     .init();
 
     // コマンドラインチェック処理
@@ -258,7 +289,7 @@ fn main() {
     let mut secs: [SecCache; SECCOUNT] = [
         SecCache {
             pid: 0,
-            buf: [0; MAXSECLEN],
+            buf: [0xff; MAXSECBUF + 1],
             seclen: 0,
             setlen: 0,
             cur: TsPacket {
@@ -360,22 +391,31 @@ fn main() {
     secs[1].pid = 0x00; // PAT
     secs[2].pid = 0x11; // SDT
     secs[3].pid = 0x12; // H-EIT
-    secs[4].pid = 0x23; // SDTT
-    secs[5].pid = 0x29; // CDT
-    secs_count = 5;
+    secs_count = 4;
 
     // std取得呼び出し
     get_sdt(&opt, &mut readbuff_file, &mut svttop, &mut secs, secs_count);
     
     // 不要なsevice_idの削除
     for cnt in (0..svttop.len()).rev() {
-        if svttop[cnt].svt_control_sub[0].import_stat <= 0 {
-            svttop.remove(cnt);
-        }
-    }
 
-    // デバッグ情報出力
+        if svttop[cnt].svt_control_sub[0].import_stat <= 0 {
+
+            svttop.remove(cnt);
+
+        };
+
+    };
+
+    // 余計なeit_pfの削除
     for cnt in 0..svttop.len() {
+
+        // 2つ目以降のeit_pfを削除
+        if cnt > 0 && opt.is_bs == false && opt.is_cs == false {
+
+            svttop[cnt].svt_control_sub[0].eit_pf = vec![];
+
+        };
 
         debug!("svttop={},service_id={},service_type={},servicename={},import_cnt={},import_stat={}", cnt, svttop[cnt].svt_control_sub[0].service_id, svttop[cnt].svt_control_sub[0].service_type, svttop[cnt].svt_control_sub[0].servicename, svttop[cnt].svt_control_sub[0].import_cnt, svttop[cnt].svt_control_sub[0].import_stat);
 
@@ -441,20 +481,19 @@ fn main() {
                  svttop[cnt].svt_control_sub[0].transport_stream_id == 0x40f2) {
                 slot -= 1;
             };
-            info!("ch_type={},node={},slot={}", ch_type, node, slot);
 
             // サブヘッダー出力
-            write!(outfile, "i:{}:a:8:{}", sdt_cnt, "{").unwrap();
-            write!(outfile, "s:2:\"id\":s:{}:\"{}\":",
+            write!(outfile, "i:{};a:8:{}", sdt_cnt, "{").unwrap();
+            write!(outfile, "s:2:\"id\";s:{}:\"{}\";",
                 svttop[cnt].svt_control_sub[0].ontv.len(), &svttop[cnt].svt_control_sub[0].ontv).unwrap();
             write!(outfile, "s:12:\"display-name\";s:{}:\"{}\";",
                 svttop[cnt].svt_control_sub[0].servicename.len(), &svttop[cnt].svt_control_sub[0].servicename).unwrap();
-            write!(outfile, "s:2:\"ts\";i:{}:", &svttop[cnt].svt_control_sub[0].transport_stream_id).unwrap();
-            write!(outfile, "s:2:\"on\";i:{}:", &svttop[cnt].svt_control_sub[0].original_network_id).unwrap();
-            write!(outfile, "s:2:\"sv\";i:{}:", &svttop[cnt].svt_control_sub[0].service_id).unwrap();
-            write!(outfile, "s:2:\"st\";i:{}:", &svttop[cnt].svt_control_sub[0].service_type).unwrap();
-            write!(outfile, "s:4:\"node\";i:{}:", node).unwrap();
-            write!(outfile, "s:4:\"slot\";i:{}:{}", slot, "}").unwrap();
+            write!(outfile, "s:2:\"ts\";i:{};", &svttop[cnt].svt_control_sub[0].transport_stream_id).unwrap();
+            write!(outfile, "s:2:\"on\";i:{};", &svttop[cnt].svt_control_sub[0].original_network_id).unwrap();
+            write!(outfile, "s:2:\"sv\";i:{};", &svttop[cnt].svt_control_sub[0].service_id).unwrap();
+            write!(outfile, "s:2:\"st\";i:{};", &svttop[cnt].svt_control_sub[0].service_type).unwrap();
+            write!(outfile, "s:4:\"node\";i:{};", node).unwrap();
+            write!(outfile, "s:4:\"slot\";i:{};{}", slot, "}").unwrap();
 
             sdt_cnt += 1;
 
@@ -497,7 +536,7 @@ fn get_sdt( cmd_opt: &CommanLineOpt, mut readbuff_file: &mut BufReader<&File>,
                     0x11 => {  // SDT
 
                         // SDT構造体の作成処理呼び出し
-                        dump_sdt(&cmd_opt,  &bsecs.buf, svttop); 
+                        dump_sdt(&cmd_opt, &bsecs.buf, svttop); 
 
                     },
                     0x12 => {  // EIT
@@ -539,8 +578,14 @@ fn insert_rest_pf(svtcur: &mut SvtControl) -> () {
     // 変数作成
     let mut start_time: i64;
     let mut end_time: i64;
-    let end_time_dt: DateTime<Local>;
+    let mut end_time_dt: DateTime<Local>;
 
+    // eit_pf配列が未作成の場合はリターン
+    if svtcur.eit_pf.len() <= 0 {
+
+        return;
+
+    }
 
     // イベントステータスがCERTAINTYの場合の処理
     if svtcur.eit_pf[0].event_status == CERTAINTY {
@@ -569,8 +614,8 @@ fn insert_rest_pf(svtcur: &mut SvtControl) -> () {
 
             }
 
-            // 開始日時と終了日時が違う場合は放送休止データ追加
-            if end_time != start_time {
+            // 終了時間が開始時間より小さい場合は放送休止データを挿入
+            if end_time < start_time {
                 svtcur.eit_pf.insert(cnt2, EitControl {
                     table_id: svtcur.eit_pf[cnt2].table_id,
                     servid: svtcur.eit_pf[cnt2].servid,
@@ -623,6 +668,9 @@ fn insert_rest_pf(svtcur: &mut SvtControl) -> () {
             // 終了日時を更新
             end_time = start_time + svtcur.eit_pf[cnt2].duration as i64;
 
+            // DateTime形式の終了日時情報作成
+            end_time_dt = Local.timestamp_opt(end_time,0).unwrap();
+
             // DateTime形式の開始日時情報作成
             let dt: DateTime<Local> = Local.with_ymd_and_hms(
                 svtcur.eit_pf[cnt2].yy as i32 + 1900, svtcur.eit_pf[cnt2].mm as u32, svtcur.eit_pf[cnt2].dd as u32 + 1,
@@ -642,7 +690,7 @@ fn insert_rest_sch(svtcur: &mut SvtControl) -> () {
     // 変数作成
     let mut start_time: i64;
     let mut end_time: i64;
-    let end_time_dt: DateTime<Local>;
+    let mut end_time_dt: DateTime<Local>;
     let cnt = 0;
 
     // DateTime形式の開始日時情報作成
@@ -694,7 +742,7 @@ fn insert_rest_sch(svtcur: &mut SvtControl) -> () {
                 hm: end_time_dt.minute() as i32,
                 ss: end_time_dt.second() as i32,
                 duration: (start_time - end_time) as i32,
-                start_time: start_time + svtcur.eitsch[cnt2 - 1].duration as i64,
+                start_time: end_time as i64,
                 title: String::from("放送休止"),
                 subtitle: String::new(),
                 desc: String::new(),
@@ -714,6 +762,9 @@ fn insert_rest_sch(svtcur: &mut SvtControl) -> () {
 
         // 終了日時を更新
         end_time = start_time + svtcur.eitsch[cnt2].duration as i64;
+
+        // DateTime形式の終了日時情報作成
+        end_time_dt = Local.timestamp_opt(end_time,0).unwrap();
 
     }
 }
@@ -823,6 +874,52 @@ fn line_serial(line_cnt: i32, array_cnt: i32, mut eitcur: &mut EitControl, ch_di
 }
 
 //
+// sch_pntの補正処理
+//
+fn sch_pnt_update( svtcur: &mut SvtControl) -> () {
+
+    // カウンター作成
+    let mut pf_cnt = 0;
+    let mut sch_cnt = 0;
+
+    for cnt in 0..svtcur.eit_pf.len() {
+
+        for cnt2 in sch_cnt as usize..svtcur.eitsch.len() {
+
+            if svtcur.eit_pf[cnt].event_id == svtcur.eitsch[cnt2].event_id {
+
+                if pf_cnt == 0 && sch_cnt > 0 {
+                    sch_cnt = 1;
+                }
+
+                //svtcur.eit_pf[cnt].sch_pnt = sch_cnt as i32;
+                svtcur.eit_pf[cnt].sch_pnt = cnt2 as i32;
+
+                break;
+
+            }
+
+            // schカウントアップ
+            sch_cnt += 1;
+
+            // ループ終了時にカウンタークリア
+            if cnt2 == svtcur.eitsch.len() -1 {
+                sch_cnt = 0;
+            };
+        }
+
+        // pfカウントアップ
+        pf_cnt += 1;
+
+        if cnt as usize == svtcur.eit_pf.len() -1 && svtcur.eit_pf[cnt].sch_pnt == 0 {
+            svtcur.eit_pf[cnt].sch_pnt = -1;
+        };
+
+    }
+
+}
+
+//
 // シリアル出力処理
 //
 fn dump_serial( cmd_opt: &CommanLineOpt, outfile: &mut File, mut svtcur: &mut SvtControl) -> () {
@@ -835,28 +932,8 @@ fn dump_serial( cmd_opt: &CommanLineOpt, outfile: &mut File, mut svtcur: &mut Sv
         // 放送休止補正処理(EIT SCH)
         insert_rest_sch(&mut svtcur);
 
-        let mut sch_cnt = 0;
-
-        // eit_pf配列分ループ
-        for cnt in 0..svtcur.eit_pf.len() {
-
-            // eitsch配列分ループ
-            for cnt2 in 0..svtcur.eitsch.len() {
-
-                // イベントＩＤが同じ場合に処理
-                if svtcur.eit_pf[cnt].event_id == svtcur.eitsch[cnt2].event_id {
-
-                    svtcur.eit_pf[cnt].sch_pnt = sch_cnt;
-                    sch_cnt += 1;
-                    break;
-
-                }
-            }
-
-            // カウンター初期化
-            sch_cnt += 0;
-
-        }
+        // sch_pnt補正処理呼出し
+        sch_pnt_update(&mut svtcur);
 
         // eit_pf、eitschにデータがある場合に出力処理
         if svtcur.eit_pf.len() > 0 || svtcur.eitsch.len() > 0 {
@@ -873,7 +950,7 @@ fn dump_serial( cmd_opt: &CommanLineOpt, outfile: &mut File, mut svtcur: &mut Sv
         };
 
         // eit_pfにデータがある場合に出力処理
-        if svtcur.eit_pf.len() > 0 {
+        if  svtcur.eit_pf.len() > 0 {
 
             write!(outfile,"a:{}:{}", svtcur.eit_pf.len(), "{").unwrap();
 
@@ -922,7 +999,8 @@ fn xml_special_chars(xml: String) -> String {
     ret_string = ret_string.replace("\"", "&quot;");
     ret_string = ret_string.replace("<", "&lt;");
     ret_string = ret_string.replace(">", "&gt;");
-
+    
+    // リターン情報
     ret_string
 }
 
@@ -940,21 +1018,8 @@ fn dump_xml( cmd_opt: &CommanLineOpt, outfile: &mut File, mut svtcur: &mut SvtCo
         // 放送休止補正処理(EIT SCH)
         insert_rest_sch(&mut svtcur);
 
-        // sch_pntの補正処理
-        let mut sch_cnt = 0;
-        for cnt in 0..svtcur.eit_pf.len() {
-
-            for cnt2 in 0..svtcur.eitsch.len() {
-
-                if svtcur.eit_pf[cnt].event_id == svtcur.eitsch[cnt2].event_id {
-
-                    svtcur.eit_pf[cnt].sch_pnt = sch_cnt;
-                    sch_cnt += 1;
-                    break;
-
-                }
-            }
-        }
+        // sch_pnt補正処理呼出し
+        sch_pnt_update(&mut svtcur);
 
         // eit_pfにデータがある場合の処理
         if svtcur.eit_pf.len() > 0 {

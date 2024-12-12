@@ -7,11 +7,11 @@ edition = "2021"
 colored = { version = "^2.0.0" }
 chrono = { version = "^0.4" }
 encoding_rs = { version = "^0.8" }
-env_logger = { version = "^0.8" }
+env_logger = { version = "^0.11" }
 getopts = { version = "^0.2" }
 log = { version = "^0.4.17" }
+simplelog = { version = "^0.9" }
 xml = { version = "^0.8" }
-
 
 [[bin]]
 name = "epgdump"

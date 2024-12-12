@@ -383,22 +383,30 @@ pub fn dump_sdt(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                 service_name_length: 0,
                 service_name: String::new(),
             };
+            desc.service_name_length = buf[index + 4 + desc.service_provider_name_length as usize] as i32;
+
+            // ワーク変数作成
+            let work_service_provider_name_length = desc.service_provider_name_length;
+            let work_service_name_length = desc.service_name_length;
 
             // サービスプロバイダー名長が1以上の場合に構造体へ転送
-            if desc.service_provider_name_length > 0 {
+            if work_service_provider_name_length > 0 {
 
                 // 文字コード変換
                 (desc.service_provider_name_length, desc.service_provider_name) =
-                    arib_to_string(&buf[index + 4..index + 4 + desc.service_provider_name_length as usize], desc.service_provider_name_length); 
+                    arib_to_string(&buf[index + 4..index + 4 + work_service_provider_name_length as usize], work_service_provider_name_length);
 
             };
-            desc.service_name_length = buf[index + 4 + desc.service_provider_name_length as usize] as i32;
 
             // サービス名長が1以上の場合に構造体へ転送
-            if desc.service_name_length > 0 {
-                (desc.service_name_length, desc.service_name) = 
-                    arib_to_string(&buf[index + 5 + desc.service_provider_name_length as usize..
-                    index + 5 + desc.service_provider_name_length as usize + desc.service_name_length as usize], desc.service_name_length);
+            if work_service_name_length > 0 {
+
+                // 文字コード変換
+                (desc.service_name_length, desc.service_name) =
+
+                    arib_to_string(&buf[index + 5 + work_service_provider_name_length as usize..
+                    index + 5 + work_service_provider_name_length as usize + work_service_name_length as usize], work_service_name_length);
+
             };
             len = desc.descriptor_length + 2;
             index += len as usize;
@@ -421,7 +429,7 @@ pub fn dump_sdt(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                         svttop[cnt].svt_control_sub[0].original_network_id = sdth.original_network_id;
                         svttop[cnt].svt_control_sub[0].transport_stream_id = sdth.transport_stream_id;
                         svttop[cnt].svt_control_sub[0].servicename = desc.service_name;
-                        svttop[cnt].svt_control_sub[0].ontv = format!("{} {}", ontvheader, sdtb.service_id);
+                        svttop[cnt].svt_control_sub[0].ontv = format!("{}_{}", ontvheader, sdtb.service_id);
 
                         // サービスタイプの設定
                         svttop[cnt].svt_control_sub[0].import_stat = stat_service_type(desc.service_type, sdtb.service_id, cmd_opt.sdt_mode);
@@ -449,7 +457,7 @@ pub fn dump_sdt(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                         svttop[cnt].svt_control_sub[0].original_network_id = sdth.original_network_id;
                         svttop[cnt].svt_control_sub[0].transport_stream_id = sdth.transport_stream_id;
                         svttop[cnt].svt_control_sub[0].servicename = desc.service_name;
-                        svttop[cnt].svt_control_sub[0].ontv = format!("{} {}", ontvheader, sdtb.service_id);
+                        svttop[cnt].svt_control_sub[0].ontv = format!("{}_{}", ontvheader, sdtb.service_id);
                         svttop[cnt].svt_control_sub[0].import_stat = 1;
 
                         debug!("svttop[cnt].svt_control_sub[0].import_stat={}, svttop[{}].svt_control_sub[0]={:?}",

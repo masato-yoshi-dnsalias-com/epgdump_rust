@@ -1,3 +1,5 @@
+#[allow(unused_imports)]
+use log::{debug, info};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -34,7 +36,7 @@ pub struct TsPacket {
 #[allow(dead_code)]
 pub struct SecCache {
     pub pid: u32,
-    pub buf: [u8; MAXSECLEN],
+    pub buf: [u8; MAXSECBUF + 1],
     pub seclen: i32,
     pub setlen: i32,
     pub cur: TsPacket,
@@ -136,20 +138,22 @@ pub struct EitNullSegmentTop {
 
 // 定数設定
 pub const MAXSECLEN: usize = 4096;    // SEC構造体最大長
+pub const MAXSECBUF: usize = 4232;    // SEC構造体最大バッファ長
 pub const TSPAYLOADMAX: usize = 184;  // 最大ペイロード長
 pub const LENGTH_PACKET: usize = 188; // 最大パケット長
 
+static mut RCOUNT: i32 = 0;           // パケットリードカウンター
+ 
 //
 // TSパケットリード処理
 //
 pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], count: usize) -> Option<SecCache> {
 
     // 変数の作成と初期化
-    static RCOUNT: i32 = 0;     // パケットリードカウンター
 
-    let mut tpk: TsPacket;      // MPEG-TSパケット
-    let mut payptr = 4;         // ペイロードポインター
-    let mut _index: usize = 0;  // インデックスカウンター
+    let mut tpk: TsPacket;          // MPEG-TSパケット
+    let mut payptr = 4;             // ペイロードポインター
+    let mut _index: usize = 0;      // インデックスカウンター
 
     loop {
 
@@ -158,9 +162,10 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
 
             // ファイルリードしバッファーに格納
             let read_buffer = readbuff_file.fill_buf().unwrap();
+            unsafe{ RCOUNT += 1 }
             
             // レングスが０以下の場合は当該パケットをスキップ
-            let len = read_buffer.len();
+            let len = read_buffer.len() as i32;
             if len <= 0 {
 
                 break
@@ -183,10 +188,10 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                     adaptation_field: 0,
                     payload: [0xff; TSPAYLOADMAX],
                     payloadlen: 184,
-                    rcount: RCOUNT,
+                    rcount: unsafe{ RCOUNT },
                 };
         
-                // アダプテーションフィールド制御情報でペイロード情報買い替え
+                // アダプテーションフィールド制御情報でペイロード情報書き換え
                 match tpk.adaptation_field_control {
                     // ヘッダー、アダプテーションフィールド、ペイロード
                     3 => {
@@ -232,7 +237,9 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                 tpk.payload[..tpk.payloadlen as usize]
                     .copy_from_slice(&read_buffer[payptr as usize..payptr as usize +  tpk.payloadlen as usize]);  
 
-                // デバッグ情報作成
+                // セクションヘッダー情報作成
+                let sec_syntax_indicator = ((tpk.payload[1] as i32 & 0x80) >> 7) as i32;
+                let _reserve =  ((tpk.payload[1] as i32 & 0x70) >> 4) as i32;
                 let _seclen = ((tpk.payload[1] as i32 & 0x0f) << 8) + tpk.payload[2] as i32 + 3;
                 let _sid = ((tpk.payload[3] as i32 & 0xff) << 8) + tpk.payload[4] as i32;
                 let _cur_next = tpk.payload[5] as i32 & 0x01;
@@ -246,17 +253,40 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                     // 指定されたpidとマッチする場合の処理
                     if secs[pid_cnt].pid == tpk.pid {
 
+                        // PID毎に最初のパケット処理時時のセクション構文インジケーターチェック(途中から始まった場合は無視)
+                        match tpk.pid {
+                            0x00 => {
+                                if sec_syntax_indicator != 1 && _reserve != 3 && secs[pid_cnt].cont == 0 {
+                                    debug!("not sec_syntax_indicator and reserve pid=0x00");
+                                    break;
+                                };
+                            },
+                            0x11 | 0x12 => {
+                                if sec_syntax_indicator != 1 && _reserve != 7 && secs[pid_cnt].cont == 0 {
+                                    debug!("not sec_syntax_indicator and reserve pid=0x{:02x}", tpk.pid);
+                                    break;
+                                };
+                            },
+                            _ => {
+                                //println!("_sec_syntax_indicator default");
+                                //break;
+                            },
+                        };
+
                         // TSパケット情報をsecs構造体へコピー
                         secs[pid_cnt].cur = tpk;
 
                         // pid初回のみの処理
                         //if secs[pid_cnt].cont == 0 && tpk.payload_unit_start_indicator == 1 {
-                        if tpk.payload_unit_start_indicator == 1 {
+                        //if tpk.payload_unit_start_indicator == 1 {
+                        if secs[pid_cnt].cont == 0 && tpk.payload_unit_start_indicator == 1 &&
+                            sec_syntax_indicator == 1 &&  tpk.payload[0] < 0x72 {
 
                             // レングス情報を初期化
                             secs[pid_cnt].seclen = 0;
                             secs[pid_cnt].setlen = 0;
                             secs[pid_cnt].curlen = 0;
+                            secs[pid_cnt].buf = [0xff; MAXSECBUF + 1];
 
                             /* セクション長を調べる */
                             secs[pid_cnt].seclen = ((secs[pid_cnt].cur.payload[1] as i32 & 0x0f) << 8) + secs[pid_cnt].cur.payload[2] as i32 + 3; // ヘッダ
@@ -288,6 +318,60 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
 
                             };
 
+                            if secs[pid_cnt].seclen + 3 < secs[pid_cnt].cur.payloadlen &&
+                                secs[pid_cnt].cur.payload[secs[pid_cnt].seclen as usize] != 0xff {
+
+                                loop {
+
+                                    if secs[pid_cnt].cur.payload[secs[pid_cnt].seclen as usize] != 0xff {
+
+                                        /* セクション長を調べる */
+                                        let seclen = ((secs[pid_cnt].cur.payload[secs[pid_cnt].seclen as usize + 1] as i32 & 0x0f) << 8)
+                                            + secs[pid_cnt].cur.payload[secs[pid_cnt].seclen as usize + 2] as i32 + 3; // ヘッダ
+
+                                        secs[pid_cnt].seclen += seclen;
+
+                                        if secs[pid_cnt].seclen > secs[pid_cnt].cur.payloadlen {
+                                            break;
+                                        };
+                                    }
+                                    else {
+                                    //    next_seclen += secs[pid_cnt].cur.payloadlen - len;
+                                        break
+                                    };
+                                };
+
+                                // セクションキャッシュにペイロードデータをコピー
+                                secs[pid_cnt].buf[..secs[pid_cnt].cur.payloadlen as usize]
+                                    .copy_from_slice(&secs[pid_cnt].cur.payload[..secs[pid_cnt].cur.payloadlen as usize]);
+
+                                // レングス設定
+                                //secs[pid_cnt].seclen += next_seclen;
+                                secs[pid_cnt].setlen = secs[pid_cnt].cur.payloadlen;
+
+                                if secs[pid_cnt].seclen > TSPAYLOADMAX as i32 {
+
+                                    // 処理済みフラグ設定
+                                    secs[pid_cnt].cont = 1;
+
+                                    // 継続パケットを処理
+                                    break;
+
+                                }
+                                else {
+
+                                    // 処理済みフラグ設定
+                                    secs[pid_cnt].cont = 0;
+
+                                    // 次のパケット処理
+                                    readbuff_file.consume(LENGTH_PACKET);
+
+                                    // リターン情報
+                                    return Some(secs[pid_cnt])
+
+                                };
+                            }
+
                             // バッファーにペイロードデータをコピー
                             secs[pid_cnt].buf[..secs[pid_cnt].seclen as usize]
                                 .copy_from_slice(&secs[pid_cnt].cur.payload[..secs[pid_cnt].seclen as usize]);
@@ -299,7 +383,7 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                             secs[pid_cnt].curlen = secs[pid_cnt].seclen;
 
                             // 処理済みフラグ設定
-                            secs[pid_cnt].cont = 1;
+                            secs[pid_cnt].cont = 0;
 
                             // インデックス設定
                             _index = pid_cnt;
@@ -314,7 +398,7 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
 
                         // pidの処理
                         // pidのセクションレングスからtsパケッド内のレングスを引いたレングスを計算
-                        let len = secs[pid_cnt].seclen - secs[pid_cnt].setlen;
+                        let mut len = secs[pid_cnt].seclen - secs[pid_cnt].setlen;
 
                         // 上記レングスが０以上の場合の処理
                         if len > 0 {
@@ -326,13 +410,54 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                                 secs[pid_cnt].buf[secs[pid_cnt].setlen as usize..secs[pid_cnt].setlen as usize + secs[pid_cnt].cur.payloadlen as usize]
                                     .copy_from_slice(&secs[pid_cnt].cur.payload[..secs[pid_cnt].cur.payloadlen as usize]);
 
-                                // // レングス設定
+                                // レングス設定
                                 secs[pid_cnt].setlen += secs[pid_cnt].cur.payloadlen;
 
                                 // 継続パケットを処理
                                 break;
 
                             };
+
+                            if len + 3 < secs[pid_cnt].cur.payloadlen && secs[pid_cnt].cur.payload[len as usize] != 0xff {
+
+
+                                let mut next_seclen = 0;
+                                loop {
+
+                                    if secs[pid_cnt].cur.payload[len as usize] != 0xff {
+
+                                        /* セクション長を調べる */
+                                        let seclen = ((secs[pid_cnt].cur.payload[len as usize + 1] as i32 & 0x0f) << 8)
+                                            + secs[pid_cnt].cur.payload[len as usize + 2] as i32 + 3; // ヘッダ
+
+                                        next_seclen += seclen;
+
+                                        debug!("len={},seclen={},next_seclen={}, len + seclen={}, secs[{}].cur.payloadlen={}",
+                                            len, seclen, next_seclen, len + seclen, pid_cnt, secs[pid_cnt].cur.payloadlen);
+
+                                        if len + seclen > secs[pid_cnt].cur.payloadlen {
+                                            break;
+                                        };
+                                        len += seclen;
+                                    }
+                                    else {
+                                    //    next_seclen += secs[pid_cnt].cur.payloadlen - len;
+                                        break
+                                    };
+                                };
+
+                                // ペイロードデータをコピー
+                                secs[pid_cnt].buf[secs[pid_cnt].setlen as usize..secs[pid_cnt].setlen as usize + secs[pid_cnt].cur.payloadlen as usize]
+                                    .copy_from_slice(&secs[pid_cnt].cur.payload[..secs[pid_cnt].cur.payloadlen as usize]);
+
+                                // レングス設定
+                                secs[pid_cnt].seclen += next_seclen;
+                                secs[pid_cnt].setlen += secs[pid_cnt].cur.payloadlen;
+
+                                // 継続パケットを処理
+                                break;
+
+                            }
 
                             // バッファーへペイロードデータをコピー
                             secs[pid_cnt].buf[secs[pid_cnt].setlen as usize..secs[pid_cnt].setlen as usize + len as usize]
@@ -345,14 +470,30 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                             secs[pid_cnt].curlen += len;
 
                             // 処理済みフラグ設定
-                            secs[pid_cnt].cont = 1;
+                            secs[pid_cnt].cont = 0;
 
                             // インデックス設定
                             _index = pid_cnt;
 
                             // 次のパケットを処理
                             readbuff_file.consume(LENGTH_PACKET);
+
+                            // リターン情報
                             return Some(secs[pid_cnt]);
+
+                        }
+                        else {
+
+                            // contが1以上の場合はリターン
+                            if secs[pid_cnt].cont > 0 {
+
+                                // 処理済みフラグ設定
+                                secs[pid_cnt].cont = 0;
+
+                                // リターン情報
+                                return Some(secs[pid_cnt])
+
+                            };
 
                         };
                     };

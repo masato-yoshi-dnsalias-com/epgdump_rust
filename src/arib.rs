@@ -1029,7 +1029,7 @@ fn designation_set_drcsgraphic(g_num: usize, code: u8) -> bool {
 // エスケープシーケンスの処理(リターン:処理バイト数)
 fn escape_control(data: &[u8], index: usize) -> i32 {
 
-    let mut len: i32 = 0;
+    let mut _len: i32 = 0;
 
     // GLページの処理
     if data[index + 1] == 0x24 { 
@@ -1044,30 +1044,30 @@ fn escape_control(data: &[u8], index: usize) -> i32 {
                     0x28 => {
 
                         designation_set_drcsgraphic(0, data[index + 4]);
-                        len = 5;
+                        _len = 5;
 
                     },
                     0x29 => {
 
                         designation_set_drcsgraphic(1, data[index + 4]);
-                        len = 5;
+                        _len = 5;
 
                     },
                     0x2a => {
 
                         designation_set_drcsgraphic(2, data[index + 4]);
-                        len = 5;
+                        _len = 5;
 
                     },
                     0x2b => {
 
                         designation_set_drcsgraphic(3, data[index + 4]);
-                        len = 5;
+                        _len = 5;
 
                     },
                     _ => {
 
-                        len = 0;
+                        _len = 1;
 
                     },
                 }
@@ -1079,24 +1079,24 @@ fn escape_control(data: &[u8], index: usize) -> i32 {
                     0x29 => {
 
                         designation_set_graphic(1,  data[index + 3]);
-                        len = 4;
+                        _len = 4;
 
                     },
                     0x2a => {
 
                         designation_set_graphic(2,  data[index + 3]);
-                        len = 4;
+                        _len = 4;
 
                     },
                     0x2b => {
 
                         designation_set_graphic(3,  data[index + 3]);
-                        len = 4;
+                        _len = 4;
 
                     },
                     _ => {
 
-                        len = 0;
+                        _len = 1;
 
                     },
                 }
@@ -1106,7 +1106,7 @@ fn escape_control(data: &[u8], index: usize) -> i32 {
 
             // グラフィックセットページの解除シーケンス
             designation_set_graphic(0, data[index + 2]);
-            len = 3;
+            _len = 3;
 
         }
     }
@@ -1119,30 +1119,30 @@ fn escape_control(data: &[u8], index: usize) -> i32 {
                 0x28 => {
 
                     designation_set_drcsgraphic(0, data[index + 3]);
-                    len = 4;
+                    _len = 4;
 
                 },
                 0x29 => {
 
                     designation_set_drcsgraphic(1, data[index + 3]);
-                    len = 4;
+                    _len = 4;
 
                 },
                 0x2a => {
 
                     designation_set_drcsgraphic(2, data[index + 3]);
-                    len = 4;
+                    _len = 4;
 
                 },
                 0x2b => {
 
                     designation_set_drcsgraphic(3, data[index + 3]);
-                    len = 4;
+                    _len = 4;
 
                 },
                 _ => {
 
-                    len = 0;
+                    _len = 1;
 
                 },
             }
@@ -1155,38 +1155,44 @@ fn escape_control(data: &[u8], index: usize) -> i32 {
                 0x28 => {
 
                     designation_set_graphic(0, data[index + 2]);
-                    len = 3;
+                    _len = 3;
 
                 },
                 0x29 => {
 
                     designation_set_graphic(1, data[index + 2]);
-                    len = 3;
+                    _len = 3;
 
                 },
                 0x2a => {
 
                     designation_set_graphic(2, data[index + 2]);
-                    len = 3;
+                    _len = 3;
 
                 },
                 0x2b => {
 
                     designation_set_graphic(3, data[index + 2]);
-                    len = 3;
+                    _len = 3;
 
                 },
                 _ => {
 
-                    len = 0;
+                    _len = 1;
 
                 },
             }
 
         }
     }
+    else {
 
-    len
+        // その他(ESCコードのみ進める)
+        _len = 1;
+
+    };
+
+    _len
 }
 
 // 制御コード文字の処理(リターン:処理バイト数、文字(String))
