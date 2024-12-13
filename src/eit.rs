@@ -1,6 +1,7 @@
 extern crate chrono;
 
 use chrono::{DateTime, Local, TimeZone};
+use log::{error};
 //use chrono::prelude::{Datelike, Timelike};
 #[allow(unused_imports)]
 use log::{debug, info};
@@ -353,8 +354,11 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                     let dt: DateTime<Local> = match Local.with_ymd_and_hms(
                         eitb.yy as i32 + 1900, eitb.mm as u32, eitb.dd as u32,
                         eitb.hh as u32, eitb.hm as u32, eitb.ss as u32).single() {
-                        Some(DateTime) => DateTime,
-                        None => return,
+                        Some(date_time) => date_time,
+                        None => {
+                            error!("日付変換エラー");
+                            return
+                        },
                     };
 
                     // シリアル時刻の作成
@@ -443,8 +447,11 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                                     let dt: DateTime<Local> = match Local.with_ymd_and_hms(
                                         eitb.yy as i32 + 1900, eitb.mm as u32, eitb.dd as u32,
                                         eitb.hh as u32, eitb.hm as u32, eitb.ss as u32).single() {
-                                        Some(DateTime) => DateTime,
-                                        None => return,
+                                        Some(date_time) => date_time,
+                                        None => {
+                                            error!("日付変換エラー");
+                                            return
+                                        },
                                     };
 
                                     // 構造体の情報更新
@@ -496,8 +503,11 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                                     let dt: DateTime<Local> = match Local.with_ymd_and_hms(
                                         eitb.yy as i32 + 1900, eitb.mm as u32, eitb.dd as u32,
                                         eitb.hh as u32, eitb.hm as u32, eitb.ss as u32).single() {
-                                        Some(DateTime) => DateTime,
-                                        None => return,
+                                        Some(date_time) => date_time,
+                                        None => {
+                                            error!("日付変換エラー");
+                                            return
+                                        },
                                     };
 
                                     // データ更新
@@ -549,8 +559,11 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                                     let dt: DateTime<Local> = match Local.with_ymd_and_hms(
                                         eitb.yy as i32 + 1900, eitb.mm as u32, eitb.dd as u32,
                                         eitb.hh as u32, eitb.hm as u32, eitb.ss as u32).single() {
-                                        Some(DateTime) => DateTime,
-                                        None => return,
+                                        Some(date_time) => date_time,
+                                        None => {
+                                            error!("日付変換エラー");
+                                            return
+                                        },
                                     };
 
                                     // データ更新
