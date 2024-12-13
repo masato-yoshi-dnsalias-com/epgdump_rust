@@ -413,7 +413,7 @@ fn main() {
         // 2つ目以降のeit_pfを削除
         if cnt > 0 && opt.is_bs == false && opt.is_cs == false {
 
-            svttop[cnt].svt_control_sub[0].eit_pf = vec![];
+           //svttop[cnt].svt_control_sub[0].eit_pf = vec![];
 
         };
 
