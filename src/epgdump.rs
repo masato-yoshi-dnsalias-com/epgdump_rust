@@ -590,19 +590,16 @@ fn insert_rest_pf(svtcur: &mut SvtControl) -> () {
     // イベントステータスがCERTAINTYの場合の処理
     if svtcur.eit_pf[0].event_status == CERTAINTY {
 
-        // DateTime形式の開始日時情報作成
+        // end_time用のDateTime形式の開始日時情報作成
         let dt: DateTime<Local> = Local.with_ymd_and_hms(
             svtcur.eit_pf[0].yy as i32 + 1900, svtcur.eit_pf[0].mm as u32, svtcur.eit_pf[0].dd as u32,
             svtcur.eit_pf[0].hh as u32, svtcur.eit_pf[0].hm as u32, svtcur.eit_pf[0].ss as u32).unwrap();
 
-        // シリアル形式の終了日時情報作成
+        // end_time用のシリアル形式の終了日時情報作成
         end_time = dt.timestamp() + svtcur.eit_pf[0].duration as i64;
 
-        // DateTime形式の終了日時情報作成
+        // end_time用のDateTime形式の終了日時情報作成
         end_time_dt = Local.timestamp_opt(end_time,0).unwrap();
-
-        // シリアル形式の開始日時情報作成
-        start_time = dt.timestamp();
 
         // eit_pf配列分ループ
         for cnt2 in 1..svtcur.eit_pf.len() {
@@ -614,8 +611,16 @@ fn insert_rest_pf(svtcur: &mut SvtControl) -> () {
 
             }
 
+            // starttime用のDateTime形式の開始日時情報作成
+            let dt: DateTime<Local> = Local.with_ymd_and_hms(
+                svtcur.eit_pf[cnt2].yy as i32 + 1900, svtcur.eit_pf[cnt2].mm as u32, svtcur.eit_pf[cnt2].dd as u32,
+                svtcur.eit_pf[cnt2].hh as u32, svtcur.eit_pf[cnt2].hm as u32, svtcur.eit_pf[cnt2].ss as u32).unwrap();
+
+            // start_time用のシリアル形式の開始日時情報作成
+            start_time = dt.timestamp();
+
             // 終了時間が開始時間より小さい場合は放送休止データを挿入
-            if end_time < start_time {
+            if end_time != start_time {
                 svtcur.eit_pf.insert(cnt2, EitControl {
                     table_id: svtcur.eit_pf[cnt2].table_id,
                     servid: svtcur.eit_pf[cnt2].servid,
@@ -671,13 +676,6 @@ fn insert_rest_pf(svtcur: &mut SvtControl) -> () {
             // DateTime形式の終了日時情報作成
             end_time_dt = Local.timestamp_opt(end_time,0).unwrap();
 
-            // DateTime形式の開始日時情報作成
-            let dt: DateTime<Local> = Local.with_ymd_and_hms(
-                svtcur.eit_pf[cnt2].yy as i32 + 1900, svtcur.eit_pf[cnt2].mm as u32, svtcur.eit_pf[cnt2].dd as u32 + 1,
-                svtcur.eit_pf[cnt2].hh as u32, svtcur.eit_pf[cnt2].hm as u32, svtcur.eit_pf[cnt2].ss as u32).unwrap();
-
-            // シリアル形式の開始日時情報作成
-            start_time = dt.timestamp();
         }
     }
 }
@@ -882,19 +880,33 @@ fn sch_pnt_update( svtcur: &mut SvtControl) -> () {
     let mut pf_cnt = 0;
     let mut sch_cnt = 0;
 
+    // eit_pfの配列分ループ
     for cnt in 0..svtcur.eit_pf.len() {
 
+        // eitschの配列分ループ
         for cnt2 in sch_cnt as usize..svtcur.eitsch.len() {
 
+            // eit_pfとeitschで同じイベントIDを見つけた場合の処理
             if svtcur.eit_pf[cnt].event_id == svtcur.eitsch[cnt2].event_id {
 
-                if pf_cnt == 0 && sch_cnt > 0 {
+                // 最初のeit_pfでかつeitschが先頭より大きい場合
+                if pf_cnt == 0 && sch_cnt > 1 {
+
+                    // 冒頭の余分なschをpf1つ前を残して切り捨て
+                    for _cnt3 in 0..cnt2 - 1 {
+
+                        svtcur.eitsch.remove(0);
+
+                    }
+
+                    // sch_cntカウンター変更
                     sch_cnt = 1;
                 }
 
-                //svtcur.eit_pf[cnt].sch_pnt = sch_cnt as i32;
-                svtcur.eit_pf[cnt].sch_pnt = cnt2 as i32;
+                // sch_pntにsch_cntを設定
+                svtcur.eit_pf[cnt].sch_pnt = sch_cnt as i32;
 
+                // 次を処理
                 break;
 
             }
@@ -904,15 +916,20 @@ fn sch_pnt_update( svtcur: &mut SvtControl) -> () {
 
             // ループ終了時にカウンタークリア
             if cnt2 == svtcur.eitsch.len() -1 {
+
                 sch_cnt = 0;
+
             };
         }
 
         // pfカウントアップ
         pf_cnt += 1;
 
+        // eit_pfループ終了時に未発見だった場合にsch_pntに「-1」を設定
         if cnt as usize == svtcur.eit_pf.len() -1 && svtcur.eit_pf[cnt].sch_pnt == 0 {
+
             svtcur.eit_pf[cnt].sch_pnt = -1;
+
         };
 
     }
