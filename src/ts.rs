@@ -143,6 +143,7 @@ pub const TSPAYLOADMAX: usize = 184;  // 最大ペイロード長
 pub const LENGTH_PACKET: usize = 188; // 最大パケット長
 
 static mut RCOUNT: i32 = 0;           // パケットリードカウンター
+static mut NEXT_CONTINUITY_COUNTER: [i32; 4096] = [0; 4096];  // パケット巡回カウンター
  
 //
 // TSパケットリード処理
@@ -275,6 +276,20 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
 
                         // TSパケット情報をsecs構造体へコピー
                         secs[pid_cnt].cur = tpk;
+
+                        // パケットドロップチェック
+                        if unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] } != tpk.continuity_counter {
+
+                            debug!("continuity_counter drop pid={}, tpk.continuity_counter={}, NEXT_CONTINUITY_COUNTER[{}]={}",
+                                tpk.pid, tpk.continuity_counter, tpk.pid, unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] });
+
+                            // パケットドロップ時はデータを破棄
+                            secs[pid_cnt].cont = 0;
+
+                        };
+
+                        // ネクストパケット巡回カウンター設定
+                        unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] = (tpk.continuity_counter + 1) & 0x0f }
 
                         // pid初回のみの処理
                         //if secs[pid_cnt].cont == 0 && tpk.payload_unit_start_indicator == 1 {

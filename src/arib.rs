@@ -1031,66 +1031,112 @@ fn escape_control(data: &[u8], index: usize) -> i32 {
 
     let mut _len: i32 = 0;
 
-    // GLページの処理
-    if data[index + 1] == 0x24 { 
+    if data.len() >= index {
+        // GLページの処理
+        if data[index + 1] == 0x24 && data.len() > index + 2 {
 
-        if data[index + 2] >= 0x28 && data[index + 2] <= 0x2b {
+            if data[index + 2] >= 0x28 && data[index + 2] <= 0x2b && data.len() > index + 3 {
 
-            if data[index + 3] == 0x20 {
+                if data[index + 3] == 0x20 && data.len() > index + 4 {
 
-                // グラフィックセットDRCSの設定シーケンス
-                match data[index + 2] {
+                    // グラフィックセットDRCSの設定シーケンス
+                    match data[index + 2] {
 
-                    0x28 => {
+                        0x28 => {
 
-                        designation_set_drcsgraphic(0, data[index + 4]);
-                        _len = 5;
+                            designation_set_drcsgraphic(0, data[index + 4]);
+                            _len = 5;
 
-                    },
-                    0x29 => {
+                        },
+                        0x29 => {
 
-                        designation_set_drcsgraphic(1, data[index + 4]);
-                        _len = 5;
+                            designation_set_drcsgraphic(1, data[index + 4]);
+                            _len = 5;
 
-                    },
-                    0x2a => {
+                        },
+                        0x2a => {
 
-                        designation_set_drcsgraphic(2, data[index + 4]);
-                        _len = 5;
+                            designation_set_drcsgraphic(2, data[index + 4]);
+                            _len = 5;
 
-                    },
-                    0x2b => {
+                        },
+                        0x2b => {
 
-                        designation_set_drcsgraphic(3, data[index + 4]);
-                        _len = 5;
+                            designation_set_drcsgraphic(3, data[index + 4]);
+                            _len = 5;
 
-                    },
-                    _ => {
+                        },
+                        _ => {
 
-                        _len = 1;
+                            _len = 1;
 
-                    },
+                        },
+                    }
+                }
+                else {
+                    // グラフィックセットページの設定シーケンス
+                    match data[index + 2] {
+                        0x29 => {
+
+                            designation_set_graphic(1,  data[index + 3]);
+                            _len = 4;
+
+                        },
+                        0x2a => {
+
+                            designation_set_graphic(2,  data[index + 3]);
+                            _len = 4;
+
+                        },
+                        0x2b => {
+
+                            designation_set_graphic(3,  data[index + 3]);
+                            _len = 4;
+
+                        },
+                        _ => {
+
+                            _len = 1;
+
+                        },
+                    }
                 }
             }
             else {
 
-                // グラフィックセットページの設定シーケンス
-                match data[index + 2] {
+                // グラフィックセットページの解除シーケンス
+                designation_set_graphic(0, data[index + 2]);
+                _len = 3;
+
+            }
+        }
+        else if data[index + 1] >= 0x28 && data[index + 1] <= 0x2b && data.len() > index + 2 {
+
+            if data[index + 2] == 0x20 && data.len() > index + 3 {
+
+                // グラフィックセットDRCSの設定シーケンス
+                match data[index + 1] {
+                    0x28 => {
+
+                        designation_set_drcsgraphic(0, data[index + 3]);
+                        _len = 4;
+
+                    },
                     0x29 => {
 
-                        designation_set_graphic(1,  data[index + 3]);
+                        designation_set_drcsgraphic(1, data[index + 3]);
                         _len = 4;
 
                     },
                     0x2a => {
 
-                        designation_set_graphic(2,  data[index + 3]);
+                        designation_set_drcsgraphic(2, data[index + 3]);
                         _len = 4;
 
                     },
                     0x2b => {
 
-                        designation_set_graphic(3,  data[index + 3]);
+                        designation_set_drcsgraphic(3, data[index + 3]);
                         _len = 4;
 
                     },
@@ -1100,96 +1146,53 @@ fn escape_control(data: &[u8], index: usize) -> i32 {
 
                     },
                 }
+
+            }
+            else {
+
+                // グラフィックセットページの設定シーケンス
+                match data[index + 1] {
+                    0x28 => {
+
+                        designation_set_graphic(0, data[index + 2]);
+                        _len = 3;
+
+                    },
+                    0x29 => {
+
+                        designation_set_graphic(1, data[index + 2]);
+                        _len = 3;
+
+                    },
+                    0x2a => {
+
+                        designation_set_graphic(2, data[index + 2]);
+                        _len = 3;
+
+                    },
+                    0x2b => {
+
+                        designation_set_graphic(3, data[index + 2]);
+                        _len = 3;
+
+                    },
+                    _ => {
+
+                        _len = 1;
+
+                    },
+                }
+
             }
         }
         else {
 
-            // グラフィックセットページの解除シーケンス
-            designation_set_graphic(0, data[index + 2]);
-            _len = 3;
+            _len = 1;
 
-        }
-    }
-    else if data[index + 1] >= 0x28 && data[index + 1] <= 0x2b {
-
-        if data[index + 2] == 0x20 {
-
-            // グラフィックセットDRCSの設定シーケンス
-            match data[index + 1] {
-                0x28 => {
-
-                    designation_set_drcsgraphic(0, data[index + 3]);
-                    _len = 4;
-
-                },
-                0x29 => {
-
-                    designation_set_drcsgraphic(1, data[index + 3]);
-                    _len = 4;
-
-                },
-                0x2a => {
-
-                    designation_set_drcsgraphic(2, data[index + 3]);
-                    _len = 4;
-
-                },
-                0x2b => {
-
-                    designation_set_drcsgraphic(3, data[index + 3]);
-                    _len = 4;
-
-                },
-                _ => {
-
-                    _len = 1;
-
-                },
-            }
-
-        }
-        else {
-
-            // グラフィックセットページの設定シーケンス
-            match data[index + 1] {
-                0x28 => {
-
-                    designation_set_graphic(0, data[index + 2]);
-                    _len = 3;
-
-                },
-                0x29 => {
-
-                    designation_set_graphic(1, data[index + 2]);
-                    _len = 3;
-
-                },
-                0x2a => {
-
-                    designation_set_graphic(2, data[index + 2]);
-                    _len = 3;
-
-                },
-                0x2b => {
-
-                    designation_set_graphic(3, data[index + 2]);
-                    _len = 3;
-
-                },
-                _ => {
-
-                    _len = 1;
-
-                },
-            }
-
-        }
+        };
     }
     else {
-
-        // その他(ESCコードのみ進める)
         _len = 1;
-
     };
 
     _len

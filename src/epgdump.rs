@@ -601,8 +601,11 @@ fn insert_rest_pf(svtcur: &mut SvtControl) -> () {
         // end_time用のDateTime形式の終了日時情報作成
         end_time_dt = Local.timestamp_opt(end_time,0).unwrap();
 
+        // eit_pfループカウンター作成
+        let mut cnt2 = 1;
+
         // eit_pf配列分ループ
-        for cnt2 in 1..svtcur.eit_pf.len() {
+        while cnt2 < svtcur.eit_pf.len() {
 
             // イベントステータスがSTART_TIME_UNCERTAINTYより大きい場合はリターン
             if (svtcur.eit_pf[cnt2].event_status & START_TIME_UNCERTAINTY) > 0 {
@@ -632,7 +635,7 @@ fn insert_rest_pf(svtcur: &mut SvtControl) -> () {
                     running_status: 0,
                     free_ca_mode: 0,
                     content_type: 14,
-                    content_subtype: 0x3f,
+                    content_subtype: 14,
                     genre2: 16,
                     sub_genre2: 16,
                     genre3: 16,
@@ -661,6 +664,9 @@ fn insert_rest_pf(svtcur: &mut SvtControl) -> () {
                     tid_status: 0,
                 });
 
+                // 放送休止追加後にカウンターアップ
+                cnt2 += 1;
+
             };
 
             // イベントステータスがDURATION_UNCERTAINTYより大きい場合はリターン
@@ -675,6 +681,9 @@ fn insert_rest_pf(svtcur: &mut SvtControl) -> () {
 
             // DateTime形式の終了日時情報作成
             end_time_dt = Local.timestamp_opt(end_time,0).unwrap();
+
+            // カウンターアップ
+            cnt2 += 1;
 
         }
     }
@@ -702,8 +711,11 @@ fn insert_rest_sch(svtcur: &mut SvtControl) -> () {
     // DateTime形式の終了日時情報作成
     end_time_dt = Local.timestamp_opt(end_time,0).unwrap();
 
+    // eitschループカウンター作成
+    let mut cnt2 = 0;
+
     // eitsch配列分ループ
-    for cnt2 in 1..svtcur.eitsch.len() {
+    while cnt2 < svtcur.eitsch.len() {
 
         // DateTime形式の開始日時情報作成
         let dt: DateTime<Local> = Local.with_ymd_and_hms(
@@ -727,7 +739,7 @@ fn insert_rest_sch(svtcur: &mut SvtControl) -> () {
                 running_status: 0,
                 free_ca_mode: 0,
                 content_type: 14,
-                content_subtype: 0x3f,
+                content_subtype: 14,
                 genre2: 16,
                 sub_genre2: 16,
                 genre3: 16,
@@ -756,6 +768,9 @@ fn insert_rest_sch(svtcur: &mut SvtControl) -> () {
                 tid_status: 0,
             });
 
+            // 放送休止追加後にカウンターアップ
+            cnt2 += 1;
+
         };
 
         // 終了日時を更新
@@ -764,6 +779,8 @@ fn insert_rest_sch(svtcur: &mut SvtControl) -> () {
         // DateTime形式の終了日時情報作成
         end_time_dt = Local.timestamp_opt(end_time,0).unwrap();
 
+        // カウンターアップ
+        cnt2 += 1;
     }
 }
 

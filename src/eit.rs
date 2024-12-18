@@ -815,8 +815,8 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                                                 descriptor_length: buf[index + 1] as i32,
                                                 content: [0; MAXSECLEN],
                                             };
-                                            content_desc.content[..content_desc.descriptor_length as usize - 1]
-                                                .copy_from_slice(&buf[index + 2..index + 2 + content_desc.descriptor_length as usize - 1]);
+                                            content_desc.content[..content_desc.descriptor_length as usize]
+                                                .copy_from_slice(&buf[index + 2..index + 2 + content_desc.descriptor_length as usize]);
                                             len = content_desc.descriptor_length as usize + 2;
 
                                             // コンテンツ詳細長が1以上の処理
