@@ -2,8 +2,8 @@
 ## Rust で記述された  epgdump UNA版互換の、MPEG2-TSストリームからEPGデータを取得するプログラムです。
 UNA版本家：https://katauna.hatenablog.com/archive/category/epgdump%20UNA
 
-## epgdump：録画コマンド
-    epgdump --BS|--CS|<id> tsFile outfile [ ( [--pf] [--sid n] ) | [--cut n1,n2] ]
+## epgdump：EPGデータ出力コマンド
+    epgdump /BS|--BS|/CS|--CS|<id> tsFile outfile [ ( [-pf|--pf] [-sid|--sid n] ) | [-cut|--cut n1,n2] ]
 詳しいオプションは「epgdump --help」を参照してください。  
 
 # ビルド
