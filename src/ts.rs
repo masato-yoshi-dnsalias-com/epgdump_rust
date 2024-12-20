@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{debug, info};
+use log::{debug, info, warn};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -143,6 +143,7 @@ pub const TSPAYLOADMAX: usize = 184;  // 最大ペイロード長
 pub const LENGTH_PACKET: usize = 188; // 最大パケット長
 
 static mut RCOUNT: i32 = 0;           // パケットリードカウンター
+static mut CONTINUITY_COUNTER_FLAG: [i32; 4096] = [0; 4096];  // パケット巡回カウンター処理フラグ
 static mut NEXT_CONTINUITY_COUNTER: [i32; 4096] = [0; 4096];  // パケット巡回カウンター
  
 //
@@ -254,7 +255,27 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                     // 指定されたpidとマッチする場合の処理
                     if secs[pid_cnt].pid == tpk.pid {
 
-                        // PID毎に最初のパケット処理時時のセクション構文インジケーターチェック(途中から始まった場合は無視)
+                        // パケットドロップチェック
+                        if unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] } != tpk.continuity_counter &&
+                            //(unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] } + 15) & 0x0f != tpk.continuity_counter &&
+                            unsafe{ CONTINUITY_COUNTER_FLAG[tpk.pid as usize]} == 1 {
+
+                            if (unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] } + 15) & 0x0f != tpk.continuity_counter {
+                                warn!("continuity_counter drop pid={}, tpk.continuity_counter={}, NEXT_CONTINUITY_COUNTER[{}]={}",
+                                    tpk.pid, tpk.continuity_counter, tpk.pid, unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] });
+
+                                // パケットドロップ時はデータを破棄
+                                secs[pid_cnt].cont = 0;
+
+                            };
+
+                        };
+
+                        // ネクストパケット巡回カウンター設定
+                        unsafe{ CONTINUITY_COUNTER_FLAG[tpk.pid as usize] = 1 }
+                        unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] = (tpk.continuity_counter + 1) & 0x0f }
+
+                        // PID毎に最初のパケット処理時のセクション構文インジケーターチェック(途中から始まった場合は無視)
                         match tpk.pid {
                             0x00 => {
                                 if sec_syntax_indicator != 1 && _reserve != 3 && secs[pid_cnt].cont == 0 {
@@ -277,23 +298,7 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                         // TSパケット情報をsecs構造体へコピー
                         secs[pid_cnt].cur = tpk;
 
-                        // パケットドロップチェック
-                        if unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] } != tpk.continuity_counter {
-
-                            debug!("continuity_counter drop pid={}, tpk.continuity_counter={}, NEXT_CONTINUITY_COUNTER[{}]={}",
-                                tpk.pid, tpk.continuity_counter, tpk.pid, unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] });
-
-                            // パケットドロップ時はデータを破棄
-                            secs[pid_cnt].cont = 0;
-
-                        };
-
-                        // ネクストパケット巡回カウンター設定
-                        unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] = (tpk.continuity_counter + 1) & 0x0f }
-
                         // pid初回のみの処理
-                        //if secs[pid_cnt].cont == 0 && tpk.payload_unit_start_indicator == 1 {
-                        //if tpk.payload_unit_start_indicator == 1 {
                         if secs[pid_cnt].cont == 0 && tpk.payload_unit_start_indicator == 1 &&
                             sec_syntax_indicator == 1 &&  tpk.payload[0] < 0x72 {
 
@@ -309,6 +314,7 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                             // セクション長が MAXSECLEN より長いときはこのセクションをスキップ
                             if secs[pid_cnt].seclen > MAXSECLEN as i32 {
 
+                                // 処理済みフラグ設定
                                 secs[pid_cnt].cont = 0;
 
                                 break;
@@ -333,26 +339,34 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
 
                             };
 
+                            // ペイロードデータが0xff以外の場合、後続データあるかの判断処理
                             if secs[pid_cnt].seclen + 3 < secs[pid_cnt].cur.payloadlen &&
                                 secs[pid_cnt].cur.payload[secs[pid_cnt].seclen as usize] != 0xff {
 
+                                // 次のデータがあるか判定処理
                                 loop {
 
+                                    // ペイロードデータが0xff以外は次のデータがあるか判断
                                     if secs[pid_cnt].cur.payload[secs[pid_cnt].seclen as usize] != 0xff {
 
                                         /* セクション長を調べる */
                                         let seclen = ((secs[pid_cnt].cur.payload[secs[pid_cnt].seclen as usize + 1] as i32 & 0x0f) << 8)
                                             + secs[pid_cnt].cur.payload[secs[pid_cnt].seclen as usize + 2] as i32 + 3; // ヘッダ
 
+                                        // pid毎のセクションレングスンにプラス
                                         secs[pid_cnt].seclen += seclen;
 
+                                        // ペイロード長よりセクション長が大きい場合は次を処理
                                         if secs[pid_cnt].seclen > secs[pid_cnt].cur.payloadlen {
+
                                             break;
+
                                         };
                                     }
                                     else {
-                                    //    next_seclen += secs[pid_cnt].cur.payloadlen - len;
+
                                         break
+
                                     };
                                 };
 
@@ -433,31 +447,40 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
 
                             };
 
+                            // ペイロードデータが0xff以外の場合、後続データあるかの判断処理
                             if len + 3 < secs[pid_cnt].cur.payloadlen && secs[pid_cnt].cur.payload[len as usize] != 0xff {
 
-
+                                // 次のセクションレングス
                                 let mut next_seclen = 0;
+
+                                // 次のデータがあるか判定処理
                                 loop {
 
+                                    // ペイロードデータが0xff以外は次のデータがあるか判断
                                     if secs[pid_cnt].cur.payload[len as usize] != 0xff {
 
                                         /* セクション長を調べる */
                                         let seclen = ((secs[pid_cnt].cur.payload[len as usize + 1] as i32 & 0x0f) << 8)
                                             + secs[pid_cnt].cur.payload[len as usize + 2] as i32 + 3; // ヘッダ
 
+                                        // 次のセクション長にプラス
                                         next_seclen += seclen;
 
-                                        debug!("len={},seclen={},next_seclen={}, len + seclen={}, secs[{}].cur.payloadlen={}",
-                                            len, seclen, next_seclen, len + seclen, pid_cnt, secs[pid_cnt].cur.payloadlen);
-
+                                        // ペイロード長よりセクション長が大きい場合は次を処理
                                         if len + seclen > secs[pid_cnt].cur.payloadlen {
+
                                             break;
+
                                         };
+
+                                        // レングスをカウントアップ
                                         len += seclen;
+
                                     }
                                     else {
-                                    //    next_seclen += secs[pid_cnt].cur.payloadlen - len;
+
                                         break
+
                                     };
                                 };
 
@@ -505,11 +528,13 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                                 // 処理済みフラグ設定
                                 secs[pid_cnt].cont = 0;
 
+                                // ネクストパケット巡回カウンター設定（同一パケットを再処理）
+                                unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] = tpk.continuity_counter }
+
                                 // リターン情報
                                 return Some(secs[pid_cnt])
 
                             };
-
                         };
                     };
                 }
