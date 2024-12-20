@@ -276,23 +276,23 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                         unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] = (tpk.continuity_counter + 1) & 0x0f }
 
                         // PID毎に最初のパケット処理時のセクション構文インジケーターチェック(途中から始まった場合は無視)
-                        match tpk.pid {
-                            0x00 => {
-                                if sec_syntax_indicator != 1 && _reserve != 3 && secs[pid_cnt].cont == 0 {
-                                    debug!("not sec_syntax_indicator and reserve pid=0x00");
-                                    break;
-                                };
-                            },
-                            0x11 | 0x12 => {
-                                if sec_syntax_indicator != 1 && _reserve != 7 && secs[pid_cnt].cont == 0 {
-                                    debug!("not sec_syntax_indicator and reserve pid=0x{:02x}", tpk.pid);
-                                    break;
-                                };
-                            },
-                            _ => {
-                                //println!("_sec_syntax_indicator default");
-                                //break;
-                            },
+                        if secs[pid_cnt].cont == 0 {
+                            match tpk.pid {
+                                0x00 => {
+                                    if !(sec_syntax_indicator == 1 && _reserve == 3) {
+                                        debug!("not start pid=0x{:02x} section data", tpk.pid);
+                                        break;
+                                    };
+                                },
+                                0x11 | 0x12 => {
+                                    if !(sec_syntax_indicator == 1 && _reserve == 7) {
+                                        debug!("not start pid=0x{:02x} section data", tpk.pid);
+                                        break;
+                                    };
+                                },
+                                _ => {
+                                },
+                            };
                         };
 
                         // TSパケット情報をsecs構造体へコピー
