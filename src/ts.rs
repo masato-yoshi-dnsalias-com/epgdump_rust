@@ -240,8 +240,9 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                     .copy_from_slice(&read_buffer[payptr as usize..payptr as usize +  tpk.payloadlen as usize]);  
 
                 // セクションヘッダー情報作成
+                let table_id = tpk.payload[0];
                 let sec_syntax_indicator = ((tpk.payload[1] as i32 & 0x80) >> 7) as i32;
-                let _reserve =  ((tpk.payload[1] as i32 & 0x70) >> 4) as i32;
+                let reserve =  ((tpk.payload[1] as i32 & 0x70) >> 4) as i32;
                 let _seclen = ((tpk.payload[1] as i32 & 0x0f) << 8) + tpk.payload[2] as i32 + 3;
                 let _sid = ((tpk.payload[3] as i32 & 0xff) << 8) + tpk.payload[4] as i32;
                 let _cur_next = tpk.payload[5] as i32 & 0x01;
@@ -275,17 +276,31 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                         unsafe{ CONTINUITY_COUNTER_FLAG[tpk.pid as usize] = 1 }
                         unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] = (tpk.continuity_counter + 1) & 0x0f }
 
-                        // PID毎に最初のパケット処理時のセクション構文インジケーターチェック(途中から始まった場合は無視)
+                        // PID毎に最初のパケットの判定(途中から始まった場合は無視)
                         if secs[pid_cnt].cont == 0 {
                             match tpk.pid {
                                 0x00 => {
-                                    if !(sec_syntax_indicator == 1 && _reserve == 3) {
+                                    if !(sec_syntax_indicator == 1 && reserve == 3) {
                                         debug!("not start pid=0x{:02x} section data", tpk.pid);
                                         break;
                                     };
                                 },
-                                0x11 | 0x12 => {
-                                    if !(sec_syntax_indicator == 1 && _reserve == 7) {
+                                0x11 => {
+                                    if !(sec_syntax_indicator == 1 && reserve == 7) {
+                                        debug!("not start pid=0x{:02x} section data", tpk.pid);
+                                        break;
+                                    }
+                                    else if !(table_id == 0x42 || table_id == 0x46) {
+                                        debug!("not start pid=0x{:02x} section data", tpk.pid);
+                                        break;
+                                    };
+                                },
+                                0x12 => {
+                                    if !(sec_syntax_indicator == 1 && reserve == 7) {
+                                        debug!("not start pid=0x{:02x} section data", tpk.pid);
+                                        break;
+                                    }
+                                    else if !(table_id >= 0x4e && table_id <= 0x6f) {
                                         debug!("not start pid=0x{:02x} section data", tpk.pid);
                                         break;
                                     };

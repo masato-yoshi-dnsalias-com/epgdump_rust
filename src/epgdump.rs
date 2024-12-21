@@ -388,10 +388,9 @@ fn main() {
     let secs_count: usize;
 
     // 処理対象を設定
-    secs[1].pid = 0x00; // PAT
-    secs[2].pid = 0x11; // SDT
-    secs[3].pid = 0x12; // H-EIT
-    secs_count = 4;
+    secs[1].pid = 0x11; // SDT
+    secs[2].pid = 0x12; // H-EIT
+    secs_count = 3;
 
     // std取得呼び出し
     get_sdt(&opt, &mut readbuff_file, &mut svttop, &mut secs, secs_count);
