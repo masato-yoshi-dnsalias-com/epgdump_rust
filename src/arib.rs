@@ -1233,43 +1233,48 @@ fn invocation_set_graphic(data: &[u8], index: usize) -> (i32, String) {
             },
             0x1b => { // ESC
 
-                match data[index + 1] {
-                    0x6e => { // LS2
+                // 後続データがある場合にエスケープコード処理
+                if data.len() > index + 1 {
+                    match data[index + 1] {
+                        0x6e => { // LS2
 
-                        GL_NUM.store(2.try_into().unwrap(), Release);
-                        len = 2;
+                            GL_NUM.store(2.try_into().unwrap(), Release);
+                            len = 2;
 
-                    },
-                    0x6f => { // LS3
+                        },
+                        0x6f => { // LS3
 
-                        GL_NUM.store(3.try_into().unwrap(), Release);
-                        len = 2;
+                            GL_NUM.store(3.try_into().unwrap(), Release);
+                            len = 2;
 
-                    },
-                    0x7c => { // LS3R
+                        },
+                        0x7c => { // LS3R
 
-                        GR_NUM.store(3.try_into().unwrap(), Release);
-                        len = 2;
+                            GR_NUM.store(3.try_into().unwrap(), Release);
+                            len = 2;
 
-                    },
-                    0x7d => { // LS2R
+                        },
+                        0x7d => { // LS2R
 
-                        GR_NUM.store(2.try_into().unwrap(), Release);
-                        len = 2;
+                            GR_NUM.store(2.try_into().unwrap(), Release);
+                            len = 2;
 
-                    },
-                    0x7e => { // LS1R
+                        },
+                        0x7e => { // LS1R
 
-                        GR_NUM.store(1.try_into().unwrap(), Release);
-                        len = 2;
+                            GR_NUM.store(1.try_into().unwrap(), Release);
+                            len = 2;
 
-                    }
-                    ,
-                    _ => {
+                        },
+                        _ => {
 
-                        len = escape_control(&data, index);
+                            len = escape_control(&data, index);
 
-                    },
+                        },
+                    };
+                }
+                else {
+                    len = 1;
                 };
             },
             0x19 => { // SS2
@@ -1278,8 +1283,12 @@ fn invocation_set_graphic(data: &[u8], index: usize) -> (i32, String) {
                 let ss2 = GL_NUM.load(Acquire);
                 GL_NUM.store(2.try_into().unwrap(), Release);
 
-                // arib_parse処理の再呼び出し
-                (len, _ret_str) = arib_parse(&data, index + 1);
+                // 後続データがある場合にarib_parse処理の再呼び出し
+                if data.len() > index + 1 {
+
+                    (len, _ret_str) = arib_parse(&data, index + 1);
+
+                };
 
                 // GLコードページの復旧
                 GL_NUM.store(ss2.try_into().unwrap(), Release);
@@ -1293,8 +1302,12 @@ fn invocation_set_graphic(data: &[u8], index: usize) -> (i32, String) {
                 let ss3 = GL_NUM.load(Acquire);
                 GL_NUM.store(3.try_into().unwrap(), Release);
 
-                // arib_parse処理の再呼び出し
-                (len, _ret_str) = arib_parse(&data, index + 1);
+                // 後続データがある場合にarib_parse処理の再呼び出し
+                if data.len() > index + 1 {
+
+                    (len, _ret_str) = arib_parse(&data, index + 1);
+
+                };
 
                 // GLコードページの復旧
                 GL_NUM.store(ss3.try_into().unwrap(), Release);
