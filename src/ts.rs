@@ -371,6 +371,16 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                                         // pid毎のセクションレングスンにプラス
                                         secs[pid_cnt].seclen += seclen;
 
+                                        // セクション長が MAXSECBUF より長いときはこのセクションをスキップ
+                                        if secs[pid_cnt].seclen > MAXSECBUF as i32 {
+
+                                            // 処理済みフラグ設定
+                                            secs[pid_cnt].cont = 0;
+
+                                            break;
+
+                                        }
+
                                         // ペイロード長よりセクション長が大きい場合は次を処理
                                         if secs[pid_cnt].seclen > secs[pid_cnt].cur.payloadlen {
 
@@ -385,12 +395,21 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                                     };
                                 };
 
+                                // セクション長が MAXSECBUF より長いときはこのセクションをスキップ
+                                if secs[pid_cnt].seclen > MAXSECBUF as i32 {
+
+                                    // 処理済みフラグ設定
+                                    secs[pid_cnt].cont = 0;
+
+                                    break;
+
+                                };
+
                                 // セクションキャッシュにペイロードデータをコピー
                                 secs[pid_cnt].buf[..secs[pid_cnt].cur.payloadlen as usize]
                                     .copy_from_slice(&secs[pid_cnt].cur.payload[..secs[pid_cnt].cur.payloadlen as usize]);
 
                                 // レングス設定
-                                //secs[pid_cnt].seclen += next_seclen;
                                 secs[pid_cnt].setlen = secs[pid_cnt].cur.payloadlen;
 
                                 if secs[pid_cnt].seclen > TSPAYLOADMAX as i32 {
@@ -450,6 +469,16 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                             // TSパケットのペイロード長より長い場合の処理
                             if len > secs[pid_cnt].cur.payloadlen {
 
+                                // セクション長が MAXSECBUF より長いときはこのセクションをスキップ
+                                if secs[pid_cnt].seclen + secs[pid_cnt].cur.payloadlen as i32 > MAXSECBUF as i32 {
+
+                                    // 処理済みフラグ設定
+                                    secs[pid_cnt].cont = 0;
+
+                                    break;
+
+                                };
+
                                 // ペイロードデータをコピー
                                 secs[pid_cnt].buf[secs[pid_cnt].setlen as usize..secs[pid_cnt].setlen as usize + secs[pid_cnt].cur.payloadlen as usize]
                                     .copy_from_slice(&secs[pid_cnt].cur.payload[..secs[pid_cnt].cur.payloadlen as usize]);
@@ -481,6 +510,17 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                                         // 次のセクション長にプラス
                                         next_seclen += seclen;
 
+                                        // セクション長が MAXSECBUF より長いときはこのセクションをスキップ
+                                        if secs[pid_cnt].seclen + next_seclen > MAXSECBUF as i32 {
+
+                                            // 処理済みフラグ設定
+                                            secs[pid_cnt].cont = 0;
+
+                                            println!("for break7");
+                                            break;
+
+                                        };
+
                                         // ペイロード長よりセクション長が大きい場合は次を処理
                                         if len + seclen > secs[pid_cnt].cur.payloadlen {
 
@@ -497,6 +537,16 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                                         break
 
                                     };
+                                };
+
+                                // セクション長が MAXSECBUF より長いときはこのセクションをスキップ
+                                if secs[pid_cnt].seclen + next_seclen > MAXSECBUF as i32 {
+
+                                    // 処理済みフラグ設定
+                                    secs[pid_cnt].cont = 0;
+
+                                    break;
+
                                 };
 
                                 // ペイロードデータをコピー
