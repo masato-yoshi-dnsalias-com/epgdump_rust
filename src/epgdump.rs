@@ -927,7 +927,7 @@ fn sch_pnt_update( svtcur: &mut SvtControl) -> () {
 
                     // sch_cntカウンター変更
                     sch_cnt = 1;
-                }
+                };
 
                 // sch_pntにsch_cntを設定
                 svtcur.eit_pf[cnt].sch_pnt = sch_cnt as i32;
@@ -936,6 +936,17 @@ fn sch_pnt_update( svtcur: &mut SvtControl) -> () {
                 break;
 
             }
+            else {
+
+                // ループ終了時に同じイベントＩＤが見つからなかった場合の処理
+                if cnt2 == svtcur.eitsch.len() -1 {
+
+                    // 未発見フラグ設定
+                    svtcur.eit_pf[cnt].sch_pnt = -1;
+
+                };
+
+            };
 
             // schカウントアップ
             sch_cnt += 1;
@@ -950,13 +961,6 @@ fn sch_pnt_update( svtcur: &mut SvtControl) -> () {
 
         // pfカウントアップ
         pf_cnt += 1;
-
-        // eit_pfループ終了時に未発見だった場合にsch_pntに「-1」を設定
-        if cnt as usize == svtcur.eit_pf.len() -1 && svtcur.eit_pf[cnt].sch_pnt == 0 {
-
-            svtcur.eit_pf[cnt].sch_pnt = -1;
-
-        };
 
     }
 
