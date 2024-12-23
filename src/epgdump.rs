@@ -406,13 +406,23 @@ fn main() {
 
     };
 
+    // 削除対象とするtransport_stream_idのワーク変数
+    let mut transport_stream_id = 0;
+
     // 余計なeit_pfの削除
     for cnt in 0..svttop.len() {
 
         // 2つ目以降のeit_pfを削除
-        if cnt > 0 && opt.is_bs == false && opt.is_cs == false {
+        if transport_stream_id != svttop[cnt].svt_control_sub[0].transport_stream_id {
 
-           svttop[cnt].svt_control_sub[0].eit_pf = vec![];
+            // 削除対象のtransport_stream_idを設定
+            transport_stream_id = svttop[cnt].svt_control_sub[0].transport_stream_id;
+
+        }
+        else {
+
+            // eit_pfの削除
+            svttop[cnt].svt_control_sub[0].eit_pf = vec![];
 
         };
 
