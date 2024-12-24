@@ -138,7 +138,7 @@ pub struct EitNullSegmentTop {
 
 // 定数設定
 pub const MAXSECLEN: usize = 4096;    // SEC構造体最大長
-pub const MAXSECBUF: usize = 4232;    // SEC構造体最大バッファ長
+pub const MAXSECBUF: usize = 4282;    // SEC構造体最大バッファ長
 pub const TSPAYLOADMAX: usize = 184;  // 最大ペイロード長
 pub const LENGTH_PACKET: usize = 188; // 最大パケット長
 

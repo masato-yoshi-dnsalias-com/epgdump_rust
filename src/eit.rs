@@ -171,6 +171,137 @@ pub const EVENT_UNCERTAINTY: i32 = 0x03;
 pub const NEXT_EVENT_UNCERTAINTY: i32 = 0x04;
 
 //
+// eittopへ追加、挿入処理
+//
+fn eittop_data_update(eittop: &mut Vec<EitControl>,
+    eith: &EitHead, eitb: &EitBody, sevtd: &SevtDesc) -> () {
+
+
+    // push_cnt初期化
+    let mut push_cnt: i32 = -1;
+
+    // データ挿入位置の確認
+    for loop_cnt in 0..eittop.len() {
+        if eittop[loop_cnt].start_time > eitb.start_time {
+            push_cnt = loop_cnt as i32;
+            break;
+        }
+    }
+
+    // 最後に追加
+    if push_cnt == -1 {
+
+        // DateTime形式の時刻情報を作成
+        let dt: DateTime<Local> = match Local.with_ymd_and_hms(
+            eitb.yy as i32 + 1900, eitb.mm as u32, eitb.dd as u32,
+            eitb.hh as u32, eitb.hm as u32, eitb.ss as u32).single() {
+            Some(date_time) => date_time,
+            None => {
+                error!("日付変換エラー");
+                return
+            },
+        };
+
+        // データ更新
+        eittop.push(EitControl {
+            table_id: eith.table_id as i32,
+            servid: eith.service_id,
+            event_id: eitb.event_id,
+            version_number: eith.version_number,
+            section_number: eith.section_number,
+            last_section_number: eith.last_section_number,
+            segment_last_section_number: eith.segment_last_section_number,
+            running_status: eitb.running_status,
+            free_ca_mode: eitb.free_ca_mode,
+            content_type: 0,
+            content_subtype: 0,
+            genre2: 0,
+            sub_genre2: 0,
+            genre3: 0,
+            sub_genre3: 0,
+            episode_number: 0,
+            yy: eitb.yy,
+            mm: eitb.mm,
+            dd: eitb.dd,
+            hh: eitb.hh,
+            hm: eitb.hm,
+            ss: eitb.ss,
+            duration: eitb.duration,
+            start_time: dt.timestamp(),
+            title: sevtd.event_name.clone(),
+            subtitle: sevtd.text.clone(),
+            desc: String::new(),
+            desc_length: 0,
+            video_type: 0,
+            audio_type: 0,
+            multi_type: 0,
+            event_status: eitb.event_status,
+            sch_pnt: 0,
+            import_cnt: 0,
+            renew_cnt: 0,
+            tid: 0,
+            tid_status: 0,
+        });
+    }
+    // 途中に追加
+    else {
+
+        // DateTime形式の時刻情報を作成
+        let dt: DateTime<Local> = match Local.with_ymd_and_hms(
+            eitb.yy as i32 + 1900, eitb.mm as u32, eitb.dd as u32,
+            eitb.hh as u32, eitb.hm as u32, eitb.ss as u32).single() {
+            Some(date_time) => date_time,
+            None => {
+                error!("日付変換エラー");
+                return
+            },
+        };
+
+        // データ更新
+        eittop.insert(push_cnt as usize, EitControl {
+            table_id: eith.table_id as i32,
+            servid: eith.service_id,
+            event_id: eitb.event_id,
+            version_number: eith.version_number,
+            section_number: eith.section_number,
+            last_section_number: eith.last_section_number,
+            segment_last_section_number: eith.segment_last_section_number,
+            running_status: eitb.running_status,
+            free_ca_mode: eitb.free_ca_mode,
+            content_type: 0,
+            content_subtype: 0,
+            genre2: 0,
+            sub_genre2: 0,
+            genre3: 0,
+            sub_genre3: 0,
+            episode_number: 0,
+            yy: eitb.yy,
+            mm: eitb.mm,
+            dd: eitb.dd,
+            hh: eitb.hh,
+            hm: eitb.hm,
+            ss: eitb.ss,
+            duration: eitb.duration,
+            start_time: dt.timestamp(),
+            title: sevtd.event_name.clone(),
+            subtitle: sevtd.text.clone(),
+            desc: String::new(),
+            desc_length: 0,
+            video_type: 0,
+            audio_type: 0,
+            multi_type: 0,
+            event_status: eitb.event_status,
+            sch_pnt: 0,
+            import_cnt: 0,
+            renew_cnt: 0,
+            tid: 0,
+            tid_status: 0,
+        });
+
+    };
+
+}
+//
 // EIT編集処理
 //
 pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtControlTop>) -> () {
@@ -258,8 +389,8 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                 // loopレングスの設定
                 loop_len = eith.section_length - (14 - 3 + 4) as i32; // 3は共通ヘッダ長 4はCRC
 
-                // loopレングスが0でEIT PFフラグがオフの場合はリターン
-                if loop_len == 0 && eit_pf_flg == false {
+                // loopレングスが0でEIT PFフラグがオフでかつ次セクションデータが無い場合はリターン
+                if loop_len == 0 && eit_pf_flg == false && buf[index + 4] == 0xff {
 
                     return
 
@@ -478,129 +609,8 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                                 // 
                                 if seach_flg == false {
 
-                                    // push_cnt初期化
-                                    let mut push_cnt: i32 = -1;
-
-                                    // データ挿入位置の確認
-                                    for loop_cnt in 0..eittop.len() {
-                                        if eittop[loop_cnt].start_time > eitb.start_time {
-                                            push_cnt = loop_cnt as i32;
-                                            break;
-                                        }
-                                    }
-
-                                    // 最後に追加
-                                    if push_cnt == -1 {
-
-                                        // DateTime形式の時刻情報を作成
-                                        let dt: DateTime<Local> = match Local.with_ymd_and_hms(
-                                            eitb.yy as i32 + 1900, eitb.mm as u32, eitb.dd as u32,
-                                            eitb.hh as u32, eitb.hm as u32, eitb.ss as u32).single() {
-                                            Some(date_time) => date_time,
-                                            None => {
-                                                error!("日付変換エラー");
-                                                return
-                                            },
-                                        };
-
-                                        // データ更新
-                                        eittop.push(EitControl {
-                                            table_id: eith.table_id as i32,
-                                            servid: eith.service_id,
-                                            event_id: eitb.event_id,
-                                            version_number: eith.version_number,
-                                            section_number: eith.section_number,
-                                            last_section_number: eith.last_section_number,
-                                            segment_last_section_number: eith.segment_last_section_number,
-                                            running_status: eitb.running_status,
-                                            free_ca_mode: eitb.free_ca_mode,
-                                            content_type: 0,
-                                            content_subtype: 0,
-                                            genre2: 0,
-                                            sub_genre2: 0,
-                                            genre3: 0,
-                                            sub_genre3: 0,
-                                            episode_number: 0,
-                                            yy: eitb.yy,
-                                            mm: eitb.mm,
-                                            dd: eitb.dd,
-                                            hh: eitb.hh,
-                                            hm: eitb.hm,
-                                            ss: eitb.ss,
-                                            duration: eitb.duration,
-                                            start_time: dt.timestamp(),
-                                            title: sevtd.event_name,
-                                            subtitle: sevtd.text,
-                                            desc: String::new(),
-                                            desc_length: 0,
-                                            video_type: 0,
-                                            audio_type: 0,
-                                            multi_type: 0,
-                                            event_status: eitb.event_status,
-                                            sch_pnt: 0,
-                                            import_cnt: 0,
-                                            renew_cnt: 0,
-                                            tid: 0,
-                                            tid_status: 0,
-                                        });
-
-                                    }
-                                    // 途中に追加
-                                    else {
-
-                                        // DateTime形式の時刻情報を作成
-                                        let dt: DateTime<Local> = match Local.with_ymd_and_hms(
-                                            eitb.yy as i32 + 1900, eitb.mm as u32, eitb.dd as u32,
-                                            eitb.hh as u32, eitb.hm as u32, eitb.ss as u32).single() {
-                                            Some(date_time) => date_time,
-                                            None => {
-                                                error!("日付変換エラー");
-                                                return
-                                            },
-                                        };
-
-                                        // データ更新
-                                        eittop.insert(push_cnt as usize, EitControl {
-                                            table_id: eith.table_id as i32,
-                                            servid: eith.service_id,
-                                            event_id: eitb.event_id,
-                                            version_number: eith.version_number,
-                                            section_number: eith.section_number,
-                                            last_section_number: eith.last_section_number,
-                                            segment_last_section_number: eith.segment_last_section_number,
-                                            running_status: eitb.running_status,
-                                            free_ca_mode: eitb.free_ca_mode,
-                                            content_type: 0,
-                                            content_subtype: 0,
-                                            genre2: 0,
-                                            sub_genre2: 0,
-                                            genre3: 0,
-                                            sub_genre3: 0,
-                                            episode_number: 0,
-                                            yy: eitb.yy,
-                                            mm: eitb.mm,
-                                            dd: eitb.dd,
-                                            hh: eitb.hh,
-                                            hm: eitb.hm,
-                                            ss: eitb.ss,
-                                            duration: eitb.duration,
-                                            start_time: dt.timestamp(),
-                                            title: sevtd.event_name,
-                                            subtitle: sevtd.text,
-                                            desc: String::new(),
-                                            desc_length: 0,
-                                            video_type: 0,
-                                            audio_type: 0,
-                                            multi_type: 0,
-                                            event_status: eitb.event_status,
-                                            sch_pnt: 0,
-                                            import_cnt: 0,
-                                            renew_cnt: 0,
-                                            tid: 0,
-                                            tid_status: 0,
-                                        });
-
-                                    };
+                                    // eittop配列への追加、挿入処理呼出し
+                                    eittop_data_update(&mut eittop, &eith, &eitb, &sevtd);
                                 };
                             };
                         }
