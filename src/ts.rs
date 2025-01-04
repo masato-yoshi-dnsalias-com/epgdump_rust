@@ -261,8 +261,8 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                             unsafe{ CONTINUITY_COUNTER_FLAG[tpk.pid as usize]} == 1 {
 
                             if (unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] } + 15) & 0x0f != tpk.continuity_counter {
-                                debug!("パケットドロップ pid=0x{:04x}, continuity_counter={} , NEXT_CONTINUITY_COUNTE={}",
-                                    tpk.pid, tpk.continuity_counter, unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] });
+                                debug!("パケットドロップ pid={}(0x{:04x}), continuity_counter={} , NEXT_CONTINUITY_COUNTE={}",
+                                    tpk.pid, tpk.pid, tpk.continuity_counter, unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] });
 
                                 // パケットドロップ時はデータを破棄
                                 secs[pid_cnt].cont = 0;
