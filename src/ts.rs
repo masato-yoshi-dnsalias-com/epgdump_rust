@@ -267,13 +267,18 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                                 // パケットドロップ時はデータを破棄
                                 secs[pid_cnt].cont = 0;
 
+                                // パケットドロップチェックフラグをクリア
+                                unsafe{ CONTINUITY_COUNTER_FLAG[tpk.pid as usize] = 0 };
+
                             };
+                        }
+                        else {
+
+                            // ネクストパケット巡回カウンター設定
+                            unsafe{ CONTINUITY_COUNTER_FLAG[tpk.pid as usize] = 1 }
+                            unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] = (tpk.continuity_counter + 1) & 0x0f }
 
                         };
-
-                        // ネクストパケット巡回カウンター設定
-                        unsafe{ CONTINUITY_COUNTER_FLAG[tpk.pid as usize] = 1 }
-                        unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] = (tpk.continuity_counter + 1) & 0x0f }
 
                         // PID毎に最初のパケットの判定(途中から始まった場合は無視)
                         if secs[pid_cnt].cont == 0 {
