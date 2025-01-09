@@ -548,6 +548,14 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                             len = sevtd.descriptor_length as usize + 2;
 
                         }
+                        // ディスクリプタータグが0xffの場合はデータエラーのためリターンし次データを処理
+                        else if buf[index] & 0xff == 0xff {
+
+                            error!("descriptor_tag number errori(descriptor_tag=0xff)");
+
+                            return
+
+                        }
                         // ディスクリプタータグが0x4d以外の場合はlenに0を設定
                         else {
 
