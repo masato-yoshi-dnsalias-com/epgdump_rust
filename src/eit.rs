@@ -197,7 +197,7 @@ fn eittop_data_update(eittop: &mut Vec<EitControl>,
             eitb.hh as u32, eitb.hm as u32, eitb.ss as u32).single() {
             Some(date_time) => date_time,
             None => {
-                error!("日付変換エラー");
+                error!("eittop_data_update 日付変換エラー(最後に追加)");
                 return
             },
         };
@@ -252,7 +252,7 @@ fn eittop_data_update(eittop: &mut Vec<EitControl>,
             eitb.hh as u32, eitb.hm as u32, eitb.ss as u32).single() {
             Some(date_time) => date_time,
             None => {
-                error!("日付変換エラー");
+                error!("eittop_data_update 日付変換エラー(途中に追加)");
                 return
             },
         };
@@ -480,7 +480,7 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                             eitb.hh as u32, eitb.hm as u32, eitb.ss as u32).single() {
                             Some(date_time) => date_time,
                             None => {
-                                error!("日付変換エラー");
+                                error!("dump_eit 日付変換エラー(EITボディー)");
                                 return
                             },
                         };
@@ -551,7 +551,7 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                         // ディスクリプタータグが0xffの場合はデータエラーのためリターンし次データを処理
                         else if buf[index] & 0xff == 0xff {
 
-                            error!("descriptor_tag number errori(descriptor_tag=0xff)");
+                            error!("descriptor_tag number error(descriptor_tag=0xff)");
 
                             return
 
@@ -581,7 +581,7 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                                             eitb.hh as u32, eitb.hm as u32, eitb.ss as u32).single() {
                                             Some(date_time) => date_time,
                                             None => {
-                                                error!("日付変換エラー");
+                                                error!("dump_eit 日付変換エラー(= event_id & service_id)");
                                                 return
                                             },
                                         };

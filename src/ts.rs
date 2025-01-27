@@ -249,6 +249,12 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                 let _sec_num = tpk.payload[6] as i32;
                 let _last_sec_num = tpk.payload[7] as i32;
 
+                // PIDがPATの場合にCONTINUITY_COUNTER_FLAG設定
+                if tpk.pid == 0x00 {
+
+                    unsafe{ CONTINUITY_COUNTER_FLAG[tpk.pid as usize] = 1 }
+
+                };
 
                 // 指定されたpidか確認
                 for pid_cnt in 1..count {
@@ -256,33 +262,33 @@ pub fn read_ts(readbuff_file: &mut BufReader<&File>, secs: &mut [SecCache], coun
                     // 指定されたpidとマッチする場合の処理
                     if secs[pid_cnt].pid == tpk.pid {
 
-                        // パケットドロップチェック
-                        if unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] } != tpk.continuity_counter &&
-                            unsafe{ CONTINUITY_COUNTER_FLAG[tpk.pid as usize]} == 1 {
+                        // パケットドロップチェック(最初のPATが来るまでは不安定なのでスキップ)
+                        if unsafe{ CONTINUITY_COUNTER_FLAG[0x00] } == 1 {
+                            if unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] } != tpk.continuity_counter &&
+                                unsafe{ CONTINUITY_COUNTER_FLAG[tpk.pid as usize]} == 1 {
 
-                            if (unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] } + 15) & 0x0f != tpk.continuity_counter {
+                                if (unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] } + 15) & 0x0f != tpk.continuity_counter {
 
-                                warn!("パケットドロップ pid={}(0x{:04x}), continuity_counter={} , NEXT_CONTINUITY_COUNTE={}",
-                                    tpk.pid, tpk.pid, tpk.continuity_counter, unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] });
+                                    warn!("パケットドロップ pid={}(0x{:04x}), continuity_counter={} , NEXT_CONTINUITY_COUNTE={} , \
+                                        tpk.rcount={} , CONTINUITY_COUNTER_FLAG={}",
+                                        tpk.pid, tpk.pid, tpk.continuity_counter, unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] },
+                                        tpk.rcount, unsafe{ CONTINUITY_COUNTER_FLAG[tpk.pid as usize] });
 
-                                // パケットドロップ時はデータを破棄
-                                secs[pid_cnt].cont = 0;
+                                    // パケットドロップ時はデータを破棄
+                                    secs[pid_cnt].cont = 0;
 
-                                // パケットドロップチェックフラグをクリア
-                                unsafe{ CONTINUITY_COUNTER_FLAG[tpk.pid as usize] = 0 };
+                                    // パケットドロップチェックフラグをクリア
+                                    unsafe{ CONTINUITY_COUNTER_FLAG[tpk.pid as usize] = 0 };
 
-                            };
-                        }
-                        else {
+                                };
+                            }
+                            else {
 
-                            // 最初のパケットを除いてネクストパケット巡回カウンター設定
-                            if tpk.rcount > 1 {
-
+                                // 最初のパケットを除いてネクストパケット巡回カウンター設定(最初のPATが来るまでは不安定なのでスキップ)
                                 unsafe{ CONTINUITY_COUNTER_FLAG[tpk.pid as usize] = 1 }
                                 unsafe{ NEXT_CONTINUITY_COUNTER[tpk.pid as usize] = (tpk.continuity_counter + 1) & 0x0f }
 
-                            }
-
+                            };
                         };
 
                         // PID毎に最初のパケットの判定(途中から始まった場合は無視)
