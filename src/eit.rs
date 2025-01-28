@@ -197,7 +197,9 @@ fn eittop_data_update(eittop: &mut Vec<EitControl>,
             eitb.hh as u32, eitb.hm as u32, eitb.ss as u32).single() {
             Some(date_time) => date_time,
             None => {
-                error!("eittop_data_update 日付変換エラー(最後に追加)");
+                error!("eittop_data_update 日付変換エラー(最後に追加) 
+                    yy={} , mm={} , dd={} , hh={} , hm={} , ss={}",
+                    eitb.yy + 1900, eitb.mm, eitb.dd, eitb.hh, eitb.hm, eitb.ss);
                 return
             },
         };
@@ -252,7 +254,9 @@ fn eittop_data_update(eittop: &mut Vec<EitControl>,
             eitb.hh as u32, eitb.hm as u32, eitb.ss as u32).single() {
             Some(date_time) => date_time,
             None => {
-                error!("eittop_data_update 日付変換エラー(途中に追加)");
+                error!("eittop_data_update 日付変換エラー(途中に追加) 
+                    yy={} , mm={} , dd={} , hh={} , hm={} , ss={}",
+                    eitb.yy + 1900, eitb.mm, eitb.dd, eitb.hh, eitb.hm, eitb.ss);
                 return
             },
         };
@@ -480,7 +484,8 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                             eitb.hh as u32, eitb.hm as u32, eitb.ss as u32).single() {
                             Some(date_time) => date_time,
                             None => {
-                                error!("dump_eit 日付変換エラー(EITボディー)");
+                                error!("dump_eit 日付変換エラー(EITボディー) yy={} , mm={} , dd={} , hh={} , hm={} , ss={}",
+                                    eitb.yy + 1900, eitb.mm, eitb.dd, eitb.hh, eitb.hm, eitb.ss);
                                 return
                             },
                         };
@@ -581,7 +586,9 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                                             eitb.hh as u32, eitb.hm as u32, eitb.ss as u32).single() {
                                             Some(date_time) => date_time,
                                             None => {
-                                                error!("dump_eit 日付変換エラー(= event_id & service_id)");
+                                                error!("dump_eit 日付変換エラー(= event_id & service_id) 
+                                                       yy={} , mm={} , dd={} , hh={} , hm={} , ss={}",
+                                                    eitb.yy + 1900, eitb.mm, eitb.dd, eitb.hh, eitb.hm, eitb.ss);
                                                 return
                                             },
                                         };
