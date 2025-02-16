@@ -170,6 +170,32 @@ pub const EVENT_UNCERTAINTY: i32 = 0x03;
 #[allow(dead_code)]
 pub const NEXT_EVENT_UNCERTAINTY: i32 = 0x04;
 
+// BCD数字チェック(60以下)
+fn chk_bcd60(src: u8) -> bool {
+
+    if (src >> 4) >= 6 || ((src & 0x0f) > 9 ) {
+
+        return false;
+
+    };
+
+    return true;
+
+}
+
+// BCD数字チェック
+fn chk_bcd(src: u8) -> bool {
+
+    if (src >> 4) > 9 || ((src & 0x0f) > 9) {
+
+        return false;
+
+    };
+    
+    return true;
+
+}
+
 //
 // eittopへ追加、挿入処理
 //
@@ -436,7 +462,7 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                          start_time[3] == 0xff && start_time[4] == 0xff {
 
                         // eventステータスと年月を初期値で設定
-                        eitb.event_status = START_TIME_UNCERTAINTY;
+                        eitb.event_status |= START_TIME_UNCERTAINTY;
                         eitb.yy = 138;
                         eitb.mm = eith.section_number + 1;
 
@@ -470,13 +496,13 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                         eitb.ss = (((start_time[4] as i32) >> 4) * 10) + (start_time[4] as i32 & 0x0f);
 
                         // 時刻長が0以外時の処理
-                        if duration[0] != 0x00 || duration[1] != 0x00 || duration[2] != 0x00 {
+                        //if duration[0] != 0x00 || duration[1] != 0x00 || duration[2] != 0x00 {
 
-                            eitb.duration = (((duration[0] as i32) >> 4) * 10 + (duration[0] as i32 & 0x0f)) * 3600 +
-                                (((duration[1] as i32) >> 4) * 10 + (duration[1] as i32 & 0x0f)) * 60 +
-                                ((duration[2] as i32) >> 4) * 10 + (duration[2] as i32 & 0x0f);
+                        //    eitb.duration = (((duration[0] as i32) >> 4) * 10 + (duration[0] as i32 & 0x0f)) * 3600 +
+                        //        (((duration[1] as i32) >> 4) * 10 + (duration[1] as i32 & 0x0f)) * 60 +
+                        //        ((duration[2] as i32) >> 4) * 10 + (duration[2] as i32 & 0x0f);
 
-                        };
+                        //};
 
                         // DateTime形式での日時、時刻情報の作成
                         let dt: DateTime<Local> = match Local.with_ymd_and_hms(
@@ -492,6 +518,21 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
 
                         // シリアル時刻の作成
                         eitb.start_time = dt.timestamp();
+
+                    };
+
+                    // durationがBCD形式の場合にdurationを計算
+                    if chk_bcd(duration[0]) && chk_bcd60(duration[1]) && chk_bcd60(duration[2]) {
+
+                        eitb.duration = (((duration[0] as i32) >> 4) * 10 + (duration[0] as i32 & 0x0f)) * 3600 +
+                                (((duration[1] as i32) >> 4) * 10 + (duration[1] as i32 & 0x0f)) * 60 +
+                                ((duration[2] as i32) >> 4) * 10 + (duration[2] as i32 & 0x0f);
+
+                    }
+                    // durationがBCD形式でない場合はevent_statusフラグにDURATION_UNCERTAINTYを設定（以下での処理をスキップ）
+                    else {
+
+                        eitb.event_status |= DURATION_UNCERTAINTY;
 
                     };
 
