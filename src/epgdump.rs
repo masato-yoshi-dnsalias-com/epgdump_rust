@@ -3,10 +3,12 @@ extern crate getopts;
 use chrono::{DateTime, Local, TimeZone};
 use chrono::prelude::{Datelike, Timelike};
 use colored::*;
+use std::io::{BufRead};
 use env_logger::{Builder, Env, Target};
 use std::fs::File;
+use std::path::Path;
 use getopts::Options;
-use log::{debug};
+use log::{debug, warn};
 use std::env;
 //use std::io::prelude::*;
 use std::io::{BufReader, Write};
@@ -242,6 +244,80 @@ pub(crate) fn command_line_check(program: &str) -> CommanLineOpt {
 
 }
 
+struct TsidList {
+    tsid: u32,
+    node: u32,
+    slot: u32,
+}
+
+//
+// Tsidリスト読込み処理
+//
+fn tsid_node_slot_list_read(tsid_list: &mut Vec<TsidList>) {
+
+const LIST_FILE: [&str; 2] = [
+    "/etc/epgdump/tsid.conf",
+    "/usr/local/etc/epgdump/tsid.conf",
+];
+
+    // 定義ファイルループ
+    for cnt in 0..LIST_FILE.len() {
+
+        // 定義ファイルの存在チェック
+        if Path::new(LIST_FILE[cnt]).exists() {
+            debug!("tsid list file = {}",LIST_FILE[cnt]);
+
+            // ファイルオープン処理
+            let file = match File::open(LIST_FILE[cnt].to_string()) {
+                Ok(file) => file,
+                Err(err) => {
+
+                    // オープンエラーの場合はログシュル得して継続
+                    warn!("File Open Error({})", err);
+
+                    continue
+
+                },
+            };
+
+            // 入力バッファーの作成
+            let buffer = BufReader::new(file);
+
+            // ファイルからリード処理(１行づつ)
+            for line in buffer.lines() {
+
+                // １行データのtrim処理
+                let line_data = line.unwrap().trim().to_string();
+
+                // 行頭が「#」以外取り込み（「#」はコメント行）
+                if line_data.chars().nth(0) != Some('#') {
+
+                    // 入力データを「,」で分割
+                    let tsid_data: Vec<&str> = line_data.split(',').collect();
+
+                    // データが３つともある場合に構造体に作成
+                    if tsid_data[0] != "" && tsid_data[1] != "" && tsid_data[2] != "" {
+                        debug!("tsid={},node={},slot={}", tsid_data[0], tsid_data[1], tsid_data[2]);
+
+                        // 構造体データ作成
+                        tsid_list.push(TsidList {
+                            tsid: tsid_data[0].parse().unwrap(),
+                            node: tsid_data[1].parse().unwrap(),
+                            slot: tsid_data[2].parse().unwrap(),
+                        });
+
+                    };
+                };
+            };
+            
+            // ループ終了
+            break;
+
+        };
+    };
+
+}
+
 fn main() {
 
     // env_logの初期化
@@ -285,6 +361,12 @@ fn main() {
         ch_type = 0;
     };
 
+    // tsid_list構造体の作成と初期化
+    let mut tsid_list: Vec<TsidList> = vec![];
+
+    // tsid_listデータの読み込み
+    tsid_node_slot_list_read(&mut tsid_list);
+
     // 構造体(SecCache, TS_Packet)の初期化
     let mut secs: [SecCache; SECCOUNT] = [
         SecCache {
@@ -315,7 +397,7 @@ fn main() {
     let mut svttop: Vec<SvtControlTop> = vec![];
     svttop.push(SvtControlTop {
         service_id: 0,
-       svt_control_sub: vec![],
+        svt_control_sub: vec![],
     });
    
     // SvtControlTopの初期化
@@ -480,11 +562,34 @@ fn main() {
             let mut node = 0;
             let mut slot = 0;
 
-            // チャンネルタイプのよるデータ作成
+            // チャンネルタイプによるデータ作成
+            // BS/CS
             if ch_type != 0 {
+
+                // TSIDからNodeとSlotを生成処理
                 node = (svttop[cnt].svt_control_sub[0].transport_stream_id & 0x1f0) >> 4;
                 slot = svttop[cnt].svt_control_sub[0].transport_stream_id & 0x07;
+
+                // TSIDからNodeとSlotをテーブルから変換処理
+                for cnt2 in 0..tsid_list.len() {
+
+                    // TsidListに対象のTSIDがある場合に変換
+                    if svttop[cnt].svt_control_sub[0].transport_stream_id == tsid_list[cnt2].tsid {
+
+                        // TsidListから設定
+                        node = tsid_list[cnt2].node;
+                        slot = tsid_list[cnt2].slot;
+                        debug!("BS Channel Node Slot Change(Tsid={},Node={},Slot={})", 
+                            tsid_list[cnt2].tsid, tsid_list[cnt2].node, tsid_list[cnt2].slot);
+
+                        // ループ終了
+                        break
+
+                    };
+                };
             };
+
+            // 地上波
             if ch_type == 1 && 
                 (svttop[cnt].svt_control_sub[0].transport_stream_id == 0x40f1 || 
                  svttop[cnt].svt_control_sub[0].transport_stream_id == 0x40f2) {
