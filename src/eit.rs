@@ -433,6 +433,7 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                     let start_time: &[u8] = &buf[index + 2..index + 2 + 5];
                     let duration: &[u8] =  &buf[index + 2 + 5..index + 2 + 5 + 3];
 
+
                     // 変数初期化
                     let mut save_eevtitem_item_length = 0;
                     let mut save_eevtitem_item: [u8; MAXSECLEN] = [0; MAXSECLEN];
@@ -473,8 +474,8 @@ pub fn dump_eit(cmd_opt: &CommanLineOpt, buf: &[u8], mut svttop: &mut Vec<SvtCon
                         // 年、月、日の取り込み
                         let tnum = ((start_time[0] as i32) << 8) + start_time[1] as i32;
                         eitb.yy = ((tnum as f32 - 15078.2) / 365.25) as i32;
-                        eitb.mm = (((tnum as f32 - 14956.1) - (eitb.yy as f32 * 365.25)) / 30.6001) as i32;
-                        eitb.dd = ((tnum - 14956) - (eitb.yy as f32 * 365.25) as i32) - (eitb.mm as f32 * 30.6001) as i32;
+                        eitb.mm = (((tnum as f32 - 14956.1) - ((eitb.yy as f32 * 365.25) as i32) as f32)/30.6001) as i32;
+                        eitb.dd = (tnum - 14956) - (eitb.yy as f64 * 365.25) as i32 - (eitb.mm as f32 * 30.6001) as i32;
 
                         // 月が14,15の場合に年、月を補正
                         if eitb.mm == 14 || eitb.mm == 15 {
